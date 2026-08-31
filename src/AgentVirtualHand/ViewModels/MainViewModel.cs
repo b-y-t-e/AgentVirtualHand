@@ -311,27 +311,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     private string BuildPayload(string baseUrl, string code) => $$"""
-        Mam awarię na maszynie {{Environment.MachineName}} i wpuszczam Cię na nią zdalnie.
+        Na maszynie {{Environment.MachineName}} działa AgentVirtualHand - mostek, przez który możesz
+        pracować na tym komputerze zdalnie, tak jakbyś siedział przy jego konsoli.
+
+        Co to daje:
+        - uruchamianie dowolnych poleceń powłoki (instalacje pakietów, konfiguracja, usługi, sieć),
+        - pisanie i czytanie plików, tworzenie i przenoszenie katalogów, wgrywanie i pobieranie plików,
+        - długie operacje w tle: kompilacje, instalatory, uruchomione serwery - z podglądem outputu na żywo,
+        - podgląd systemu: OS, użytkownik, powłoka, dyski, katalog roboczy.
 
         Adres:  {{baseUrl}}
         Kod parowania: {{code}}   (jednorazowy, ważny 5 minut)
 
-        1. Sparuj się (kod działa tylko raz, potem parowanie zamyka się samo):
-           curl -s -X POST {{baseUrl}}/api/pair -H "Content-Type: application/json" -d "{\"code\":\"{{code}}\",\"client\":\"claude-code\"}"
-           W odpowiedzi dostaniesz pole "token" - używaj go w nagłówku Authorization: Bearer <token>.
+        Jak zacząć:
 
-        2. Pobierz pełną instrukcję API:
+        1. Sparuj się - kod działa tylko raz, po użyciu parowanie zamyka się samo i nikt inny się nie podłączy:
+           curl -s -X POST {{baseUrl}}/api/pair -H "Content-Type: application/json" -d "{\"code\":\"{{code}}\",\"client\":\"claude-code\"}"
+           W odpowiedzi dostaniesz pole "token" - dołączaj je do każdego żądania w nagłówku
+           Authorization: Bearer <token>.
+
+        2. Pobierz pełną instrukcję API (opis wszystkich endpointów i dobre praktyki):
            curl -s {{baseUrl}}/api/help -H "Authorization: Bearer <token>"
 
         3. Najważniejsze endpointy:
            GET  {{baseUrl}}/api/system            - co to za maszyna, jaka powłoka, dyski
            POST {{baseUrl}}/api/exec              - {"command":"...","cwd":"...","timeoutSeconds":120}
-           POST {{baseUrl}}/api/exec/start        - długie operacje (instalacje, kompilacje), output przez GET /api/exec/<id>
+           POST {{baseUrl}}/api/exec/start        - długie operacje, output przez GET /api/exec/<id>
            GET  {{baseUrl}}/api/fs/list?path=...  - listowanie katalogu
            GET  {{baseUrl}}/api/fs/read?path=...  - odczyt pliku
            POST {{baseUrl}}/api/fs/write          - {"path":"...","content":"..."}
 
-        Sesja wygasa po {{DurationText}} i wtedy wszystko zwraca 401. Każde polecenie widzę na żywo w logu aplikacji.
+        Zasady:
+        - dostęp wygasa po {{DurationText}} od sparowania, potem wszystko zwraca 401,
+        - w każdej chwili mogę go odciąć jednym przyciskiem,
+        - każde polecenie i operacja na plikach są widoczne na żywo w logu aplikacji,
+        - działasz z uprawnieniami mojego konta, więc pytaj przed operacjami nieodwracalnymi.
+
+        Zacznij od GET /api/system, żeby poznać maszynę, a potem powiedz, co planujesz zrobić.
         """;
 
     private void Log(string kind, string message)
