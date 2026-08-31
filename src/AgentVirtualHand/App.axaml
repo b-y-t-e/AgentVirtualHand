@@ -1,0 +1,20 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AgentVirtualHand.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+
+  <Application.Resources>
+    <SolidColorBrush x:Key="Bg">#0E1116</SolidColorBrush>
+    <SolidColorBrush x:Key="Card">#161A22</SolidColorBrush>
+    <SolidColorBrush x:Key="Line">#232935</SolidColorBrush>
+    <SolidColorBrush x:Key="Text">#E6E9EF</SolidColorBrush>
+    <SolidColorBrush x:Key="Muted">#8B95A7</SolidColorBrush>
+    <SolidColorBrush x:Key="Accent">#4C8DFF</SolidColorBrush>
+    <SolidColorBrush x:Key="Danger">#FF7B72</SolidColorBrush>
+  </Application.Resources>
+
+</Application>
