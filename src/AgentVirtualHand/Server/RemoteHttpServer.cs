@@ -76,12 +76,12 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         _app = null;
         Options = null;
         _shell.KillAll();
-        await app.StopAsync(TimeSpan.FromSeconds(3));
-        await app.DisposeAsync();
+        await app.StopAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        await app.DisposeAsync().ConfigureAwait(false);
         Audit?.Invoke("server", "Serwer zatrzymany");
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync();
+    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
 
     private void MapEndpoints(WebApplication app)
     {

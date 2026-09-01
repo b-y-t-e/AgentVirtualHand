@@ -262,11 +262,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Log(result.Success ? "app" : "deny", "Firewall: " + result.Message);
     }
 
-    public async Task ShutdownAsync()
+    /// <summary>
+    /// Wołane z wątku UI przy zamykaniu okna. Zatrzymanie Kestrela musi się odbyć poza wątkiem UI -
+    /// czekanie na niego wprost zakleszcza, bo kontynuacje zadań wracają na dyspozytora UI,
+    /// który jest właśnie zablokowany (proces zostawał z zamkniętym oknem i żywym serwerem).
+    /// </summary>
+    public void ShutdownBlocking()
     {
         _timer.Stop();
-        _sessions.Revoke("zamknięcie aplikacji");
-        await _server.StopAsync();
+
+        Task.Run(async () =>
+        {
+            _sessions.Revoke("zamknięcie aplikacji");
+            await _server.StopAsync().ConfigureAwait(false);
+        }).Wait(TimeSpan.FromSeconds(5));
     }
 
     private void Refresh()
@@ -311,43 +320,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     private string BuildPayload(string baseUrl, string code) => $$"""
-        Na maszynie {{Environment.MachineName}} działa AgentVirtualHand - mostek, przez który możesz
-        pracować na tym komputerze zdalnie, tak jakbyś siedział przy jego konsoli.
-
-        Co to daje:
-        - uruchamianie dowolnych poleceń powłoki (instalacje pakietów, konfiguracja, usługi, sieć),
-        - pisanie i czytanie plików, tworzenie i przenoszenie katalogów, wgrywanie i pobieranie plików,
-        - długie operacje w tle: kompilacje, instalatory, uruchomione serwery - z podglądem outputu na żywo,
-        - podgląd systemu: OS, użytkownik, powłoka, dyski, katalog roboczy.
-
-        Adres:  {{baseUrl}}
-        Kod parowania: {{code}}   (jednorazowy, ważny 5 minut)
-
-        Jak zacząć:
-
-        1. Sparuj się - kod działa tylko raz, po użyciu parowanie zamyka się samo i nikt inny się nie podłączy:
-           curl -s -X POST {{baseUrl}}/api/pair -H "Content-Type: application/json" -d "{\"code\":\"{{code}}\",\"client\":\"claude-code\"}"
-           W odpowiedzi dostaniesz pole "token" - dołączaj je do każdego żądania w nagłówku
-           Authorization: Bearer <token>.
-
-        2. Pobierz pełną instrukcję API (opis wszystkich endpointów i dobre praktyki):
-           curl -s {{baseUrl}}/api/help -H "Authorization: Bearer <token>"
-
-        3. Najważniejsze endpointy:
-           GET  {{baseUrl}}/api/system            - co to za maszyna, jaka powłoka, dyski
-           POST {{baseUrl}}/api/exec              - {"command":"...","cwd":"...","timeoutSeconds":120}
-           POST {{baseUrl}}/api/exec/start        - długie operacje, output przez GET /api/exec/<id>
-           GET  {{baseUrl}}/api/fs/list?path=...  - listowanie katalogu
-           GET  {{baseUrl}}/api/fs/read?path=...  - odczyt pliku
-           POST {{baseUrl}}/api/fs/write          - {"path":"...","content":"..."}
-
-        Zasady:
-        - dostęp wygasa po {{DurationText}} od sparowania, potem wszystko zwraca 401,
-        - w każdej chwili mogę go odciąć jednym przyciskiem,
-        - każde polecenie i operacja na plikach są widoczne na żywo w logu aplikacji,
-        - działasz z uprawnieniami mojego konta, więc pytaj przed operacjami nieodwracalnymi.
-
-        Zacznij od GET /api/system, żeby poznać maszynę, a potem powiedz, co planujesz zrobić.
+        AVH {{baseUrl}} = zdalna powloka+pliki na {{Environment.MachineName}}. Dzialasz na koncie wlasciciela; operacje destrukcyjne najpierw potwierdz.
+        PAIR (kod {{code}}, jednorazowy, 5 min): curl -s -X POST {{baseUrl}}/api/pair -H "Content-Type: application/json" -d "{\"code\":\"{{code}}\",\"client\":\"claude-code\"}" -> wez "token"; potem do kazdego requestu: -H "Authorization: Bearer <token>"
+        API (prefix {{baseUrl}}): GET /api/help (pelna instrukcja) | GET /api/system (os, shell, dyski, home) | GET /api/session (pozostaly czas)
+        EXEC: POST /api/exec {"command":"...","cwd":"...","timeoutSeconds":120} -> exitCode/stdout/stderr/timedOut
+        BG: POST /api/exec/start (te same pola) -> {"id"} | GET /api/exec/<id>?outOffset=N&errOffset=N (output przyrostowo; running, exitCode) | POST /api/exec/<id>/stdin (body=tekst) | POST /api/exec/<id>/kill
+        FS: GET /api/fs/list?path= | GET /api/fs/read?path=&maxBytes= | GET /api/fs/download?path= | POST /api/fs/write {"path","content"|"contentBase64","append"?} | POST /api/fs/upload?path= (body=bajty) | POST /api/fs/mkdir {"path"} | POST /api/fs/delete {"path","recursive"?} | POST /api/fs/move {"from","to"}
+        NOTY: sciezki Windows w JSON z podwojnym backslashem lub /; dlugie operacje (instalacje, kompilacje) przez BG; sesja wygasa po {{DurationText}} od sparowania -> 401 (popros o nowe parowanie); koniec pracy: POST /api/session/end.
         """;
 
     private void Log(string kind, string message)

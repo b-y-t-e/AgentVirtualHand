@@ -17,8 +17,10 @@ public partial class App : Application
             var viewModel = new MainViewModel();
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
 
-            // Zamknięcie okna musi odciąć dostęp - inaczej serwer żyje dalej w tle.
-            desktop.ShutdownRequested += (_, _) => viewModel.ShutdownAsync().GetAwaiter().GetResult();
+            // Zamknięcie okna musi odciąć dostęp. Blokowanie wątku UI na async zatrzymaniu
+            // serwera zakleszcza się (kontynuacje wracają na dyspozytora UI), dlatego czekanie
+            // odbywa się na wątku roboczym - patrz MainViewModel.ShutdownBlocking.
+            desktop.ShutdownRequested += (_, _) => viewModel.ShutdownBlocking();
         }
 
         base.OnFrameworkInitializationCompleted();

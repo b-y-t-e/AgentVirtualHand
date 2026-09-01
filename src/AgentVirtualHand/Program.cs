@@ -14,6 +14,10 @@ internal static class Program
             return RunHeadless(args).GetAwaiter().GetResult();
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+
+        // Twarda gwarancja: zamknięte okno = martwy proces. Nic nie może utrzymywać
+        // tej aplikacji (a zwłaszcza jej serwera) przy życiu w tle.
+        Environment.Exit(0);
         return 0;
     }
 
