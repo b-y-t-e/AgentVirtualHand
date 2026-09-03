@@ -105,6 +105,21 @@
       <Setter Property="Foreground" Value="{DynamicResource Body}" />
     </Style>
 
+    <Style Selector="ComboBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FieldLine}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Link}" />
+      <Setter Property="Padding" Value="0,0,6,2" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ComboBox /template/ Border#Background">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
     <Style Selector="Slider">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="Margin" Value="0,-4" />
@@ -189,7 +204,7 @@
     <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
 
     <!-- 3. Ustawienia jako gesta siatka -->
-    <Grid Grid.Row="2" Margin="22,16" ColumnDefinitions="*,34,*" RowDefinitions="Auto,10,Auto">
+    <Grid Grid.Row="2" Margin="22,16" ColumnDefinitions="*,34,*" RowDefinitions="Auto,10,Auto,10,Auto">
       <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="Auto,*">
         <TextBlock Grid.Column="0" Classes="k" Text="port" VerticalAlignment="Center" />
         <TextBox Grid.Column="1" Text="{Binding Port}" IsEnabled="{Binding !IsRunning}"
@@ -211,6 +226,17 @@
         <TextBlock Grid.Column="0" Classes="k" Text="okno dostępu" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Classes="val" Text="{Binding DurationText}"
                    HorizontalAlignment="Right" VerticalAlignment="Center" />
+      </Grid>
+
+      <!-- Adres, ktory dostanie klient. Maszyna ma zwykle kilka: Ethernet, Wi-Fi, Tailscale, VPN. -->
+      <Grid Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" ColumnDefinitions="Auto,12,*">
+        <TextBlock Grid.Column="0" Classes="k" Text="adres" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="2" ItemsSource="{Binding Addresses}"
+                  SelectedItem="{Binding SelectedAddress}"
+                  IsEnabled="{Binding LanVisible}"
+                  IsVisible="{Binding LanVisible}" />
+        <TextBlock Grid.Column="2" Classes="val" Text="127.0.0.1 · tylko ta maszyna"
+                   VerticalAlignment="Center" IsVisible="{Binding !LanVisible}" />
       </Grid>
     </Grid>
     <Border Grid.Row="2" Classes="sep" VerticalAlignment="Bottom" />

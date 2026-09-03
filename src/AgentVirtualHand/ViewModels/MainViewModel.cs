@@ -42,6 +42,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _remainingText = "";
     private string _clientText = "";
     private string _hint = "Uruchom serwer, potem kliknij Paruj.";
+    private LocalAddress? _selectedAddress;
 
     public MainViewModel()
     {
@@ -54,11 +55,56 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
 
+        RefreshAddresses();
         Log("app", $"AgentVirtualHand {AppInfo.Version} na {Environment.MachineName}");
         Refresh();
     }
 
     public ObservableCollection<LogEntry> Logs { get; } = [];
+
+    /// <summary>Adresy, pod ktorymi ta maszyna jest osiagalna - Ethernet, Wi-Fi, Tailscale, VPN.</summary>
+    public ObservableCollection<LocalAddress> Addresses { get; } = [];
+
+    /// <summary>Adres pokazywany klientowi: w QR, w polu "adres" i w danych do schowka.</summary>
+    public LocalAddress? SelectedAddress
+    {
+        get => _selectedAddress;
+        set
+        {
+            if (!Set(ref _selectedAddress, value)) return;
+            OnPropertyChanged(nameof(BaseUrl));
+            RebuildPairArtifacts();
+        }
+    }
+
+    public bool HasManyAddresses => Addresses.Count > 1;
+
+    /// <summary>
+    /// Odswieza liste adresow zachowujac wybor uzytkownika - interfejsy potrafia
+    /// pojawiac sie i znikac (VPN, Tailscale) w trakcie dzialania aplikacji.
+    /// </summary>
+    public void RefreshAddresses()
+    {
+        var found = NetworkInfo.LocalAddresses();
+        if (found.Select(a => a.Address).SequenceEqual(Addresses.Select(a => a.Address))) return;
+
+        var keep = SelectedAddress?.Address;
+        Addresses.Clear();
+        foreach (var address in found) Addresses.Add(address);
+
+        SelectedAddress = Addresses.FirstOrDefault(a => a.Address == keep) ?? Addresses.FirstOrDefault();
+        OnPropertyChanged(nameof(HasManyAddresses));
+    }
+
+    /// <summary>Po zmianie adresu kod parowania zostaje ten sam, ale QR i instrukcja musza wskazac nowy host.</summary>
+    private void RebuildPairArtifacts()
+    {
+        if (!HasPairCode) return;
+
+        QrImage = QrGenerator.Create($"{BaseUrl}/pair?code={PairCode}");
+        ConnectionText = $"{BaseUrl}   kod: {PairCode}";
+        ClipboardPayload = BuildPayload(BaseUrl, PairCode);
+    }
 
     public string MachineName => Environment.MachineName;
 
@@ -71,7 +117,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool LanVisible
     {
         get => _lanVisible;
-        set { if (Set(ref _lanVisible, value)) OnPropertyChanged(nameof(VisibilityHint)); }
+        set
+        {
+            if (!Set(ref _lanVisible, value)) return;
+            OnPropertyChanged(nameof(VisibilityHint));
+            OnPropertyChanged(nameof(BaseUrl));
+            RebuildPairArtifacts();
+        }
     }
 
     public string VisibilityHint => LanVisible
@@ -162,7 +214,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get
         {
-            var host = LanVisible ? NetworkInfo.PrimaryAddress() : "127.0.0.1";
+            var host = LanVisible ? SelectedAddress?.Address ?? NetworkInfo.PrimaryAddress() : "127.0.0.1";
             return $"http://{host}:{Port}";
         }
     }
@@ -289,6 +341,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void Refresh()
     {
+        RefreshAddresses();
+
         var state = _sessions.State;
 
         var (statusText, statusAccent) = (IsRunning, state) switch
