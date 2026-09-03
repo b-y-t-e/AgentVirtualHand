@@ -4,8 +4,8 @@
         x:Class="AgentVirtualHand.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="AgentVirtualHand"
-        Width="720" Height="780"
-        MinWidth="640" MinHeight="640"
+        Width="720" Height="620"
+        MinWidth="640" MinHeight="520"
         Background="{DynamicResource Bg}"
         FontFamily="Cascadia Mono, Consolas, monospace"
         FontSize="13">
