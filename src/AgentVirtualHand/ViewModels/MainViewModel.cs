@@ -43,6 +43,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _clientText = "";
     private string _hint = "Uruchom serwer, potem kliknij Paruj.";
     private LocalAddress? _selectedAddress;
+    private string? _preferredAddress;
+    private bool _settingsLoaded;
 
     public MainViewModel()
     {
@@ -55,6 +57,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
 
+        LoadSettings();
         RefreshAddresses();
         Log("app", $"AgentVirtualHand {AppInfo.Version} na {Environment.MachineName}");
         Refresh();
@@ -74,6 +77,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (!Set(ref _selectedAddress, value)) return;
             OnPropertyChanged(nameof(BaseUrl));
             RebuildPairArtifacts();
+            SaveSettings();
         }
     }
 
@@ -88,7 +92,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var found = NetworkInfo.LocalAddresses();
         if (found.Select(a => a.Address).SequenceEqual(Addresses.Select(a => a.Address))) return;
 
-        var keep = SelectedAddress?.Address;
+        var keep = SelectedAddress?.Address ?? _preferredAddress;
         Addresses.Clear();
         foreach (var address in found) Addresses.Add(address);
 
@@ -106,12 +110,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ClipboardPayload = BuildPayload(BaseUrl, PairCode);
     }
 
+    /// <summary>Odtwarza ustawienia z poprzedniego uruchomienia. Wywolywane raz, przed pierwszym odswiezeniem adresow.</summary>
+    private void LoadSettings()
+    {
+        var saved = AppSettings.Load();
+
+        if (saved.Port is { Length: > 0 }) _port = saved.Port;
+        if (saved.LanVisible is { } lan) _lanVisible = lan;
+        if (saved.DurationMinutes is { } minutes)
+        {
+            _durationMinutes = Math.Clamp(minutes, 5, 480);
+            _sessions.SessionDuration = TimeSpan.FromMinutes(_durationMinutes);
+        }
+
+        _preferredAddress = saved.Address;
+        _settingsLoaded = true;
+    }
+
+    private void SaveSettings()
+    {
+        if (!_settingsLoaded) return;
+
+        _preferredAddress = SelectedAddress?.Address ?? _preferredAddress;
+        new AppSettings(Port, LanVisible, DurationMinutes, _preferredAddress).Save();
+    }
+
     public string MachineName => Environment.MachineName;
 
     public string Port
     {
         get => _port;
-        set => Set(ref _port, value);
+        set { if (Set(ref _port, value)) SaveSettings(); }
     }
 
     public bool LanVisible
@@ -123,6 +152,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(VisibilityHint));
             OnPropertyChanged(nameof(BaseUrl));
             RebuildPairArtifacts();
+            SaveSettings();
         }
     }
 
@@ -138,6 +168,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (!Set(ref _durationMinutes, Math.Clamp(value, 5, 480))) return;
             _sessions.SessionDuration = TimeSpan.FromMinutes(_durationMinutes);
             OnPropertyChanged(nameof(DurationText));
+            SaveSettings();
         }
     }
 
