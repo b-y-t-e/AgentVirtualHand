@@ -10,6 +10,13 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <InvariantGlobalization>true</InvariantGlobalization>
     <RootNamespace>AgentVirtualHand</RootNamespace>
+
+    <!-- Publikacja do jednego pliku .exe: biblioteki natywne (Skia, HarfBuzz, ANGLE)
+         musza byc jawnie wciagniete do bundla, inaczej lezaly by obok exe.
+         Symbole wbudowane w plik - zeby nie generowac osobnego .pdb. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

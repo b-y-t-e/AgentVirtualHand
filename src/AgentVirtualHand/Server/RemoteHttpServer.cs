@@ -50,24 +50,73 @@ public sealed class RemoteHttpServer : IAsyncDisposable
     {
         if (_app is not null) throw new InvalidOperationException("Serwer już działa.");
 
+        // Kolejnosc prob bindowania. Dla sieci lokalnej najpierw dual-stack [::], potem
+        // czysty IPv4 - to ten sam fallback, ktory Kestrel robi wewnetrznie dla IPAddress.Any,
+        // ale tam nieudana proba nie zwalnia gniazda i kolejna dostaje WSAEACCES (10013).
+        // Tutaj kazda proba dostaje wlasna instancje aplikacji, w pelni zwalniana przy bledzie.
+        var addresses = options.LanVisible
+            ? new[] { IPAddress.IPv6Any, IPAddress.Any }
+            : new[] { IPAddress.Loopback };
+
+        WebApplication? started = null;
+        var errors = new List<Exception>();
+
+        foreach (var address in addresses)
+        {
+            var candidate = BuildApp(address, options.Port);
+            try
+            {
+                await candidate.StartAsync();
+                started = candidate;
+                break;
+            }
+            catch (Exception ex)
+            {
+                // AggregateException zachowuje oryginalne stosy wszystkich prob -
+                // "throw lastError" by je skasowal.
+                errors.Add(new InvalidOperationException($"bind {Describe(address)}:{options.Port}", ex));
+                Audit?.Invoke("server", $"Nie udalo sie zbindowac {Describe(address)}:{options.Port} - {ex.Message}");
+                // Zwalniamy gniazdo, zanim sprobujemy kolejnego adresu.
+                try { await candidate.DisposeAsync().ConfigureAwait(false); } catch { /* i tak probujemy dalej */ }
+            }
+        }
+
+        if (started is null)
+            throw new AggregateException("Nie udalo sie zbindowac zadnego adresu.", errors);
+
+        var app = started;
+        _app = app;
+        Options = options;
+        Audit?.Invoke("server", $"Serwer wystartował na {(options.LanVisible ? "wszystkich interfejsach" : "127.0.0.1")}:{options.Port}");
+    }
+
+    private WebApplication BuildApp(IPAddress address, int port)
+    {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
+
+        // Bez zewnetrznej konfiguracji. Kestrel DOKLADA endpointy z sekcji "Kestrel" w
+        // konfiguracji (np. zmienna Kestrel__Endpoints__Http__Url ustawiona na maszynie)
+        // do tego z kodu. Taki dodatkowy endpoint na zajetym porcie wywraca caly start
+        // serwera, mimo ze nasz wlasny port jest wolny.
+        builder.Configuration.Sources.Clear();
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
-            var address = options.LanVisible ? IPAddress.Any : IPAddress.Loopback;
-            kestrel.Listen(address, options.Port);
+            // Jawny IPEndPoint - Kestrel sam wlaczy DualMode dla IPv6Any i nie uruchomi
+            // swojej wewnetrznej sciezki AnyIPListenOptions.
+            kestrel.Listen(new IPEndPoint(address, port));
             kestrel.Limits.MaxRequestBodySize = 512L * 1024 * 1024; // pozwalamy wgrywać wieksze pliki
         });
         builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = 512L * 1024 * 1024);
 
         var app = builder.Build();
         MapEndpoints(app);
-
-        await app.StartAsync();
-        _app = app;
-        Options = options;
-        Audit?.Invoke("server", $"Serwer wystartował na {(options.LanVisible ? "0.0.0.0" : "127.0.0.1")}:{options.Port}");
+        return app;
     }
+
+    private static string Describe(IPAddress address) =>
+        Equals(address, IPAddress.IPv6Any) ? "[::] (dual-stack)" :
+        Equals(address, IPAddress.Any) ? "0.0.0.0" : address.ToString();
 
     public async Task StopAsync()
     {

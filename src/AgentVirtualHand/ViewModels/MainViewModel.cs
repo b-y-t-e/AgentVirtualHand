@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Text;
 using AgentVirtualHand.Server;
 using AgentVirtualHand.Services;
 using Avalonia.Media;
@@ -176,12 +178,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
-            if (!NetworkInfo.IsPortFree(port, LanVisible))
-            {
-                Hint = $"Port {port} jest zajęty - wybierz inny.";
-                return;
-            }
-
+            // Bez wstepnego testu "czy port wolny": otwarte i zamkniete gniazdo probne
+            // potrafi jeszcze trzymac port, gdy sekunde pozniej binduje sie Kestrel.
+            // Zajetosc portu i tak zglosi sam start serwera.
             try
             {
                 await _server.StartAsync(new ServerOptions(port, LanVisible));
@@ -189,8 +188,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
             catch (Exception ex)
             {
-                Log("deny", "Nie udało się wystartować: " + ex.Message);
-                Hint = "Błąd startu serwera: " + ex.Message;
+                var dump = DumpException("start serwera", port, ex);
+                var reason = Explain(port, ex);
+                Log("deny", "Nie udało się wystartować: " + reason);
+                Hint = reason + (dump is null ? "" : $"  |  szczegóły zapisane w: {dump}");
             }
         }
 
@@ -328,6 +329,81 @@ public sealed class MainViewModel : INotifyPropertyChanged
         FS: GET /api/fs/list?path= | GET /api/fs/read?path=&maxBytes= | GET /api/fs/download?path= | POST /api/fs/write {"path","content"|"contentBase64","append"?} | POST /api/fs/upload?path= (body=bajty) | POST /api/fs/mkdir {"path"} | POST /api/fs/delete {"path","recursive"?} | POST /api/fs/move {"from","to"}
         NOTY: sciezki Windows w JSON z podwojnym backslashem lub /; dlugie operacje (instalacje, kompilacje) przez BG; sesja wygasa po {{DurationText}} od sparowania -> 401 (popros o nowe parowanie); koniec pracy: POST /api/session/end.
         """;
+
+    /// <summary>
+    /// Zapisuje pełny wyjątek (ze stosem i wyjątkami wewnętrznymi) obok pliku .exe.
+    /// Sam Message przy błędach gniazd nie mówi, która warstwa go zgłosiła.
+    /// </summary>
+    private static string? DumpException(string what, int port, Exception ex)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            var file = Path.Combine(dir, "AgentVirtualHand-blad.log");
+
+            var sb = new StringBuilder();
+            sb.AppendLine(new string('=', 70));
+            sb.AppendLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {what}  port={port}");
+            sb.AppendLine($"maszyna={Environment.MachineName} uzytkownik={Environment.UserName} os={Environment.OSVersion}");
+            sb.AppendLine($"proces={Environment.ProcessPath} 64bit={Environment.Is64BitProcess}");
+            sb.AppendLine(new string('-', 70));
+
+            // Sonda sama binduje port, wiec domyslnie wylaczona - inaczej utrudnialaby
+            // kolejna probe startu. Wlacza sie zmienna srodowiskowa AVH_DIAG=1.
+            if (Environment.GetEnvironmentVariable("AVH_DIAG") == "1")
+            {
+                try { sb.AppendLine(SocketProbe.Diagnose(port)); }
+                catch (Exception probeError) { sb.AppendLine($"test gniazd nie wykonany: {probeError.Message}"); }
+                sb.AppendLine(new string('-', 70));
+            }
+
+            AppendException(sb, ex);
+
+            File.AppendAllText(file, sb.ToString());
+            return file;
+        }
+        catch
+        {
+            return null; // diagnostyka nie może wywrócić aplikacji
+        }
+    }
+
+    /// <summary>Zamienia wyjątek startu serwera na komunikat dla użytkownika.</summary>
+    private static string Explain(int port, Exception ex)
+    {
+        var socketError = FindSocketError(ex);
+        return socketError switch
+        {
+            SocketError.AddressAlreadyInUse => $"Port {port} jest zajęty przez inny program - wybierz inny port.",
+            SocketError.AccessDenied => $"System odmówił dostępu do portu {port}. Sprawdź, czy port nie jest zarezerwowany "
+                                      + "(netsh int ipv4 show excludedportrange protocol=tcp) i czy nie blokuje go program ochronny.",
+            _ => "Błąd startu serwera: " + ex.Message,
+        };
+    }
+
+    private static SocketError? FindSocketError(Exception ex) => ex switch
+    {
+        SocketException se => se.SocketErrorCode,
+        AggregateException agg => agg.InnerExceptions.Select(FindSocketError).FirstOrDefault(e => e is not null),
+        { InnerException: { } inner } => FindSocketError(inner),
+        _ => null,
+    };
+
+    /// <summary>Rozwija lancuch InnerException oraz wszystkie galezie AggregateException.</summary>
+    private static void AppendException(StringBuilder sb, Exception ex, int depth = 0)
+    {
+        var indent = new string(' ', depth * 2);
+        sb.AppendLine($"{indent}[{ex.GetType().FullName}] {ex.Message}");
+        if (ex is SocketException se)
+            sb.AppendLine($"{indent}    SocketErrorCode={se.SocketErrorCode} ErrorCode={se.ErrorCode} NativeErrorCode={se.NativeErrorCode}");
+        if (ex.StackTrace is { } trace) sb.AppendLine(trace);
+        sb.AppendLine(new string('-', 70));
+
+        if (ex is AggregateException agg)
+            foreach (var inner in agg.InnerExceptions) AppendException(sb, inner, depth + 1);
+        else if (ex.InnerException is { } single)
+            AppendException(sb, single, depth + 1);
+    }
 
     private void Log(string kind, string message)
     {

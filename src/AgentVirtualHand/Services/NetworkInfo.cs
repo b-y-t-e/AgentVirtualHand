@@ -32,20 +32,4 @@ public static class NetworkInfo
     }
 
     public static string PrimaryAddress() => LocalAddresses().FirstOrDefault() ?? "127.0.0.1";
-
-    /// <summary>Sprawdza, czy port da się zająć (szybki test przed startem serwera).</summary>
-    public static bool IsPortFree(int port, bool lanVisible)
-    {
-        try
-        {
-            var listener = new TcpListener(lanVisible ? IPAddress.Any : IPAddress.Loopback, port);
-            listener.Start();
-            listener.Stop();
-            return true;
-        }
-        catch (SocketException)
-        {
-            return false;
-        }
-    }
 }
