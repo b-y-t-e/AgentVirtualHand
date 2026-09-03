@@ -99,10 +99,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool HasSession => _sessions.State == AccessState.Active;
     public bool HasPairCode => _pairCode.Length > 0;
 
+    /// <summary>Serwer dziala, ale nie ma jeszcze kodu - pokazujemy zachete do parowania.</summary>
+    public bool ShowPairPrompt => IsRunning && !HasPairCode;
+
     public string PairCode
     {
         get => _pairCode;
-        private set { if (Set(ref _pairCode, value)) OnPropertyChanged(nameof(HasPairCode)); }
+        private set
+        {
+            if (!Set(ref _pairCode, value)) return;
+            OnPropertyChanged(nameof(HasPairCode));
+            OnPropertyChanged(nameof(ShowPairPrompt));
+        }
     }
 
     public Bitmap? QrImage
@@ -318,6 +326,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ServerButtonText));
         OnPropertyChanged(nameof(CanPair));
         OnPropertyChanged(nameof(HasSession));
+        OnPropertyChanged(nameof(ShowPairPrompt));
     }
 
     private string BuildPayload(string baseUrl, string code) => $$"""

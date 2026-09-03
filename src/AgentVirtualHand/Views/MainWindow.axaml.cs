@@ -1,5 +1,6 @@
 using AgentVirtualHand.ViewModels;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
@@ -7,7 +8,37 @@ namespace AgentVirtualHand.Views;
 
 public partial class MainWindow : Window
 {
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        KeyDown += OnShortcut;
+    }
+
+    /// <summary>Skróty z paska na dole okna. Ctrl+D zamiast Ctrl+C - to drugie zabiera pole tekstowe.</summary>
+    private async void OnShortcut(object? sender, KeyEventArgs e)
+    {
+        if (Model is null || e.KeyModifiers != KeyModifiers.Control) return;
+
+        switch (e.Key)
+        {
+            case Key.S:
+                e.Handled = true;
+                await Model.ToggleServerAsync();
+                break;
+            case Key.P when Model.CanPair:
+                e.Handled = true;
+                Model.StartPairing();
+                break;
+            case Key.D when Model.HasPairCode:
+                e.Handled = true;
+                OnCopy(sender, new RoutedEventArgs());
+                break;
+            case Key.F:
+                e.Handled = true;
+                await Model.ConfigureFirewallAsync(open: true);
+                break;
+        }
+    }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 

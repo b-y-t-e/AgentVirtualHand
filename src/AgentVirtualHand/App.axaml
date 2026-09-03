@@ -8,13 +8,29 @@
   </Application.Styles>
 
   <Application.Resources>
+    <!-- Akcent motywu Fluent: bez tego suwak, przelacznik i focus sa systemowo fioletowe -->
+    <Color x:Key="SystemAccentColor">#4C8DFF</Color>
+    <Color x:Key="SystemAccentColorLight1">#6BA0FF</Color>
+    <Color x:Key="SystemAccentColorLight2">#8AB4FF</Color>
+    <Color x:Key="SystemAccentColorLight3">#A9C8FF</Color>
+    <Color x:Key="SystemAccentColorDark1">#3D7AE8</Color>
+    <Color x:Key="SystemAccentColorDark2">#2F63C4</Color>
+    <Color x:Key="SystemAccentColorDark3">#24509F</Color>
+
     <SolidColorBrush x:Key="Bg">#0E1116</SolidColorBrush>
     <SolidColorBrush x:Key="Card">#161A22</SolidColorBrush>
-    <SolidColorBrush x:Key="Line">#232935</SolidColorBrush>
+    <SolidColorBrush x:Key="Line">#1B212B</SolidColorBrush>
+    <SolidColorBrush x:Key="FieldLine">#232935</SolidColorBrush>
+    <SolidColorBrush x:Key="Field">#151A22</SolidColorBrush>
     <SolidColorBrush x:Key="Text">#E6E9EF</SolidColorBrush>
-    <SolidColorBrush x:Key="Muted">#8B95A7</SolidColorBrush>
+    <SolidColorBrush x:Key="Body">#D5DAE3</SolidColorBrush>
+    <SolidColorBrush x:Key="Muted">#5C6474</SolidColorBrush>
+    <SolidColorBrush x:Key="Soft">#8B95A7</SolidColorBrush>
     <SolidColorBrush x:Key="Accent">#4C8DFF</SolidColorBrush>
+    <SolidColorBrush x:Key="Link">#A9D3FF</SolidColorBrush>
+    <SolidColorBrush x:Key="Ok">#63D19B</SolidColorBrush>
     <SolidColorBrush x:Key="Danger">#FF7B72</SolidColorBrush>
+    <SolidColorBrush x:Key="DangerLine">#35222A</SolidColorBrush>
   </Application.Resources>
 
 </Application>

@@ -4,52 +4,59 @@
         x:Class="AgentVirtualHand.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="AgentVirtualHand"
-        Width="1020" Height="720"
-        MinWidth="900" MinHeight="620"
+        Width="720" Height="780"
+        MinWidth="640" MinHeight="640"
         Background="{DynamicResource Bg}"
-        FontFamily="Inter, Segoe UI, sans-serif">
+        FontFamily="Cascadia Mono, Consolas, monospace"
+        FontSize="13">
 
   <Window.Styles>
-    <Style Selector="Border.card">
-      <Setter Property="Background" Value="{DynamicResource Card}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Line}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="14" />
-      <Setter Property="Padding" Value="20" />
-    </Style>
-
-    <Style Selector="TextBlock.title">
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{DynamicResource Text}" />
-      <Setter Property="Margin" Value="0,0,0,14" />
-    </Style>
-
-    <Style Selector="TextBlock.label">
+    <!-- Etykieta techniczna: male, wyciszone, monospace -->
+    <Style Selector="TextBlock.k">
       <Setter Property="FontSize" Value="11" />
       <Setter Property="Foreground" Value="{DynamicResource Muted}" />
-      <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
-    <Style Selector="TextBlock.muted">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+    <Style Selector="TextBlock.val">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Foreground" Value="{DynamicResource Body}" />
+    </Style>
+
+    <!-- Proza czytana zdaniami - font interfejsowy, nie monospace -->
+    <Style Selector="TextBlock.ui">
+      <Setter Property="FontFamily" Value="Segoe UI, Inter, sans-serif" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="Foreground" Value="{DynamicResource Soft}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <Style Selector="Border.sep">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource Line}" />
+    </Style>
+
     <Style Selector="Button">
-      <Setter Property="Height" Value="38" />
-      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="FontFamily" Value="Segoe UI, Inter, sans-serif" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Padding" Value="14,0" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="Background" Value="#1D2431" />
-      <Setter Property="Foreground" Value="{DynamicResource Text}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Line}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource Field}" />
+      <Setter Property="Foreground" Value="#C7CEDA" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FieldLine}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="FontSize" Value="13" />
     </Style>
     <Style Selector="Button:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#252D3D" />
-      <Setter Property="BorderBrush" Value="#33405A" />
+      <Setter Property="Background" Value="#1C222C" />
+      <Setter Property="BorderBrush" Value="#2C3444" />
+      <Setter Property="TextBlock.Foreground" Value="{DynamicResource Text}" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="#12161D" />
+      <Setter Property="TextBlock.Foreground" Value="#454D5C" />
     </Style>
 
     <Style Selector="Button.primary">
@@ -60,200 +67,220 @@
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="#6BA0FF" />
-      <Setter Property="Foreground" Value="#08101F" />
+      <Setter Property="TextBlock.Foreground" Value="#08101F" />
     </Style>
 
     <Style Selector="Button.danger">
+      <Setter Property="Background" Value="{DynamicResource Bg}" />
       <Setter Property="Foreground" Value="{DynamicResource Danger}" />
-      <Setter Property="Background" Value="#20161A" />
-      <Setter Property="BorderBrush" Value="#3A2229" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DangerLine}" />
     </Style>
     <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#2E1A20" />
+      <Setter Property="Background" Value="#1B1216" />
+      <Setter Property="TextBlock.Foreground" Value="{DynamicResource Danger}" />
     </Style>
 
+    <!-- Pole portu: bez pudelka, sama linia pod wartoscia -->
     <Style Selector="TextBox">
-      <Setter Property="Background" Value="{DynamicResource Bg}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Line}" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Foreground" Value="{DynamicResource Text}" />
-      <Setter Property="Padding" Value="10,8" />
-      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FieldLine}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Body}" />
+      <Setter Property="Padding" Value="0,0,0,2" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="HorizontalContentAlignment" Value="Right" />
+    </Style>
+    <Style Selector="TextBox:disabled">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <Style Selector="ToggleSwitch">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+      <Setter Property="Foreground" Value="{DynamicResource Body}" />
+    </Style>
+
+    <Style Selector="Slider">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Margin" Value="0,-4" />
     </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto" Margin="24,20,24,18">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto">
 
-    <!-- Nagłówek -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="4,0,4,18">
-      <StackPanel Grid.Column="0" Spacing="2">
-        <TextBlock Text="AgentVirtualHand" FontSize="20" FontWeight="SemiBold"
-                   Foreground="{DynamicResource Text}" />
-        <TextBlock Classes="muted" Text="{Binding MachineName, StringFormat='zdalna ręka na {0}'}" />
-      </StackPanel>
-
-      <Border Grid.Column="1" VerticalAlignment="Center" CornerRadius="999"
-              Background="#1D2431" BorderBrush="{DynamicResource Line}" BorderThickness="1"
-              Padding="12,6">
-        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Ellipse Width="8" Height="8" Fill="{Binding StatusAccent}" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{DynamicResource Text}" />
-        </StackPanel>
-      </Border>
+    <!-- 1. Pasek stanu -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Height="42" Margin="22,0">
+      <TextBlock Grid.Column="0" Text="agentvirtualhand" FontSize="12.5" FontWeight="SemiBold"
+                 Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Classes="k" FontSize="12" Margin="12,0,0,0"
+                 Text="{Binding MachineName}" VerticalAlignment="Center" />
+      <Ellipse Grid.Column="3" Width="6" Height="6" Fill="{Binding StatusAccent}"
+               VerticalAlignment="Center" />
+      <TextBlock Grid.Column="4" Text="{Binding StatusText}" FontSize="12" Margin="8,0,0,0"
+                 Foreground="{Binding StatusAccent}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="5" Classes="k" FontSize="12" Margin="10,0,0,0"
+                 Text="{Binding RemainingText}" VerticalAlignment="Center" />
     </Grid>
+    <Border Grid.Row="0" Classes="sep" VerticalAlignment="Bottom" />
 
-    <!-- Tresc -->
-    <Grid Grid.Row="1" ColumnDefinitions="360,*" RowDefinitions="*">
+    <!-- 2a. Serwer zatrzymany -->
+    <StackPanel Grid.Row="1" Margin="22,24,22,22" Spacing="16" IsVisible="{Binding !IsRunning}">
+      <StackPanel Spacing="7">
+        <TextBlock Classes="k" Text="maszyna odcięta" />
+        <TextBlock Classes="ui" MaxWidth="520" HorizontalAlignment="Left"
+                   Text="Uruchom serwer, potem wygeneruj jednorazowy kod. Do sparowania nikt się nie połączy, a po wygaśnięciu okna dostęp znika sam." />
+      </StackPanel>
+      <Grid ColumnDefinitions="Auto,8,*,8,Auto">
+        <Button Grid.Column="0" Classes="primary" Content="Uruchom serwer" Click="OnToggleServer" />
+        <Button Grid.Column="2" Content="Odblokuj port w firewallu" Click="OnOpenFirewall"
+                HorizontalAlignment="Stretch" />
+        <Button Grid.Column="4" Content="Cofnij" Click="OnCloseFirewall" />
+      </Grid>
+    </StackPanel>
 
-      <!-- Lewa kolumna -->
-      <ScrollViewer Grid.Column="0" Margin="0,0,16,0" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="16">
+    <!-- 2b. Serwer dziala, brak kodu -->
+    <StackPanel Grid.Row="1" Margin="22,24,22,22" Spacing="16" IsVisible="{Binding ShowPairPrompt}">
+      <StackPanel Spacing="5">
+        <TextBlock Classes="k" Text="adres" />
+        <SelectableTextBlock Text="{Binding BaseUrl}" FontSize="13" Foreground="{DynamicResource Link}" />
+      </StackPanel>
+      <TextBlock Classes="ui" MaxWidth="520" HorizontalAlignment="Left"
+                 Text="Kliknij Paruj - aplikacja wygeneruje jednorazowy kod, adres i kod QR. Po sparowaniu nikt inny się nie podłączy." />
+      <Grid ColumnDefinitions="Auto,8,*">
+        <Button Grid.Column="0" Classes="primary" Content="Paruj" Width="120"
+                IsEnabled="{Binding CanPair}" Click="OnPair" />
+        <Button Grid.Column="2" Content="Zatrzymaj serwer" Click="OnToggleServer"
+                HorizontalAlignment="Left" />
+      </Grid>
+    </StackPanel>
 
-          <Border Classes="card">
-            <StackPanel Spacing="14">
-              <TextBlock Classes="title" Text="SERWER" />
+    <!-- 2c. Kod parowania + QR -->
+    <Grid Grid.Row="1" Margin="22,22,22,20" ColumnDefinitions="132,22,*"
+          IsVisible="{Binding HasPairCode}">
+      <Border Grid.Column="0" Width="132" Height="132" CornerRadius="4" Padding="9"
+              VerticalAlignment="Top" Background="White">
+        <Image Source="{Binding QrImage}" />
+      </Border>
 
-              <StackPanel>
-                <TextBlock Classes="label" Text="Port" />
-                <TextBox Text="{Binding Port}" IsEnabled="{Binding !IsRunning}" />
-              </StackPanel>
-
-              <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Grid.Column="0" Classes="label" Text="Dostępny w sieci lokalnej"
-                             VerticalAlignment="Center" Margin="0" />
-                  <ToggleSwitch Grid.Column="1" OnContent="" OffContent=""
-                                IsChecked="{Binding LanVisible}" IsEnabled="{Binding !IsRunning}" />
-                </Grid>
-                <TextBlock Classes="muted" Text="{Binding VisibilityHint}" />
-              </StackPanel>
-
-              <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Grid.Column="0" Classes="label" Text="Czas dostępu" Margin="0" />
-                  <TextBlock Grid.Column="1" Text="{Binding DurationText}" FontSize="12"
-                             FontWeight="SemiBold" Foreground="{DynamicResource Text}" />
-                </Grid>
-                <Slider Minimum="5" Maximum="480" TickFrequency="5" IsSnapToTickEnabled="True"
-                        Value="{Binding DurationMinutes}" />
-              </StackPanel>
-
-              <Border IsVisible="{Binding IsRunning}" CornerRadius="10" Padding="12,10"
-                      Background="{DynamicResource Bg}" BorderBrush="{DynamicResource Line}" BorderThickness="1">
-                <StackPanel Spacing="4">
-                  <TextBlock Classes="label" Text="Nasłuchuje na" Margin="0" />
-                  <SelectableTextBlock Text="{Binding BaseUrl}" FontSize="13"
-                                       FontFamily="Consolas, ui-monospace, monospace" Foreground="#A9D3FF" />
-                </StackPanel>
-              </Border>
-
-              <Button Name="ServerButton" Classes="primary" HorizontalAlignment="Stretch"
-                      Content="{Binding ServerButtonText}" Click="OnToggleServer" />
-
-              <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="*,10,Auto">
-                  <Button Grid.Column="0" HorizontalAlignment="Stretch"
-                          Content="Odblokuj port w firewallu" Click="OnOpenFirewall" />
-                  <Button Grid.Column="2" Content="Cofnij" Click="OnCloseFirewall" />
-                </Grid>
-                <TextBlock Classes="muted"
-                           Text="Użyj, jeśli klient nie może się połączyć mimo działającego serwera. System poprosi o uprawnienia administratora." />
-              </StackPanel>
-            </StackPanel>
-          </Border>
-
-          <Border Classes="card" IsVisible="{Binding HasSession}">
-            <StackPanel Spacing="12">
-              <TextBlock Classes="title" Text="AKTYWNA SESJA" />
-              <TextBlock Text="{Binding RemainingText}" FontSize="34" FontWeight="Light"
-                         FontFamily="Consolas, ui-monospace, monospace"
-                         Foreground="#63D19B" />
-              <TextBlock Classes="muted" Text="{Binding ClientText}" />
-              <Grid ColumnDefinitions="*,10,*">
-                <Button Grid.Column="0" Content="Przedłuż" Click="OnExtend" HorizontalAlignment="Stretch" />
-                <Button Grid.Column="2" Classes="danger" Content="Odetnij dostęp"
-                        Click="OnEndSession" HorizontalAlignment="Stretch" />
-              </Grid>
-            </StackPanel>
-          </Border>
-
+      <StackPanel Grid.Column="2" Spacing="14">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="k" Text="kod parowania" />
+          <TextBlock Text="{Binding PairCode}" FontSize="26" FontWeight="SemiBold"
+                     Foreground="{DynamicResource Text}" />
+          <TextBlock Classes="k" FontSize="11.5" Text="jednorazowy, ważny 5 minut" />
         </StackPanel>
-      </ScrollViewer>
+        <StackPanel Spacing="5">
+          <TextBlock Classes="k" Text="adres" />
+          <SelectableTextBlock Text="{Binding BaseUrl}" FontSize="13"
+                               Foreground="{DynamicResource Link}" />
+        </StackPanel>
+        <Grid ColumnDefinitions="*,8,Auto">
+          <Button Grid.Column="0" Classes="primary" HorizontalAlignment="Stretch"
+                  Content="Kopiuj dane i instrukcję" Click="OnCopy" />
+          <Button Grid.Column="2" Content="Nowy kod" Click="OnPair" IsEnabled="{Binding CanPair}" />
+        </Grid>
+      </StackPanel>
+    </Grid>
+    <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
 
-      <!-- Prawa kolumna -->
-      <Grid Grid.Column="1" RowDefinitions="Auto,*">
+    <!-- 3. Ustawienia jako gesta siatka -->
+    <Grid Grid.Row="2" Margin="22,16" ColumnDefinitions="*,34,*" RowDefinitions="Auto,10,Auto">
+      <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Classes="k" Text="port" VerticalAlignment="Center" />
+        <TextBox Grid.Column="1" Text="{Binding Port}" IsEnabled="{Binding !IsRunning}"
+                 VerticalAlignment="Center" />
+      </Grid>
+      <Grid Grid.Row="0" Grid.Column="2" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Classes="k" Text="klient" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Classes="val" Text="{Binding ClientText}"
+                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
+      </Grid>
 
-        <Border Grid.Row="0" Classes="card" Margin="0,0,0,16">
-          <StackPanel Spacing="14">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Grid.Column="0" Classes="title" Text="PAROWANIE" Margin="0" />
-              <Button Grid.Column="1" Classes="primary" Content="Paruj" Width="120"
-                      IsEnabled="{Binding CanPair}" Click="OnPair" />
-            </Grid>
-
-            <TextBlock Classes="muted" IsVisible="{Binding !HasPairCode}"
-                       Text="Kliknij Paruj - aplikacja wygeneruje jednorazowy kod, adres i kod QR. Po udanym parowaniu okno zamyka się automatycznie i nikt inny się nie podłączy." />
-
-            <Grid ColumnDefinitions="Auto,24,*" IsVisible="{Binding HasPairCode}">
-              <Border Grid.Column="0" CornerRadius="12" Background="{DynamicResource Bg}"
-                      BorderBrush="{DynamicResource Line}" BorderThickness="1" Padding="10">
-                <Image Source="{Binding QrImage}" Width="188" Height="188" />
-              </Border>
-
-              <StackPanel Grid.Column="2" Spacing="12" VerticalAlignment="Center">
-                <StackPanel>
-                  <TextBlock Classes="label" Text="Kod parowania" />
-                  <TextBlock Text="{Binding PairCode}" FontSize="30" FontWeight="SemiBold"
-                             FontFamily="Consolas, ui-monospace, monospace"
-                             Foreground="{DynamicResource Text}" />
-                </StackPanel>
-
-                <StackPanel>
-                  <TextBlock Classes="label" Text="Adres" />
-                  <SelectableTextBlock Text="{Binding ConnectionText}" FontSize="13"
-                                       FontFamily="Consolas, ui-monospace, monospace"
-                                       Foreground="#A9D3FF" />
-                </StackPanel>
-
-                <Grid ColumnDefinitions="*,10,Auto">
-                  <Button Grid.Column="0" Classes="primary" HorizontalAlignment="Stretch"
-                          Content="Kopiuj dane + instrukcję" Click="OnCopy" />
-                  <Button Grid.Column="2" Content="Nowy kod" Click="OnPair" />
-                </Grid>
-              </StackPanel>
-            </Grid>
-          </StackPanel>
-        </Border>
-
-        <Border Grid.Row="1" Classes="card">
-          <Grid RowDefinitions="Auto,*">
-            <TextBlock Grid.Row="0" Classes="title" Text="LOG NA ŻYWO" />
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Logs}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:LogEntry">
-                    <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,0,0,6">
-                      <TextBlock Grid.Column="0" Text="{Binding Time}" FontSize="12"
-                                 FontFamily="Consolas, ui-monospace, monospace"
-                                 Foreground="#5C6474" Opacity="0.7" />
-                      <Border Grid.Column="1" Width="6" Height="6" CornerRadius="3" Margin="10,6,10,0"
-                              VerticalAlignment="Top" Background="{Binding Accent}" />
-                      <TextBlock Grid.Column="2" Text="{Binding Message}" FontSize="12.5"
-                                 TextWrapping="Wrap" Foreground="{DynamicResource Text}" />
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Grid>
-        </Border>
+      <Grid Grid.Row="2" Grid.Column="0" ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Classes="k" Text="sieć lokalna" VerticalAlignment="Center" />
+        <ToggleSwitch Grid.Column="2" OnContent="on" OffContent="off"
+                      IsChecked="{Binding LanVisible}" IsEnabled="{Binding !IsRunning}" />
+      </Grid>
+      <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Classes="k" Text="okno dostępu" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Classes="val" Text="{Binding DurationText}"
+                   HorizontalAlignment="Right" VerticalAlignment="Center" />
       </Grid>
     </Grid>
+    <Border Grid.Row="2" Classes="sep" VerticalAlignment="Bottom" />
 
-    <!-- Pasek podpowiedzi -->
-    <Border Grid.Row="2" Margin="0,16,0,0" CornerRadius="10" Padding="14,10"
-            Background="#12161E" BorderBrush="{DynamicResource Line}" BorderThickness="1">
-      <TextBlock Text="{Binding Hint}" Classes="muted" />
+    <!-- 4. Suwak okna dostepu - ustawiany przed startem -->
+    <StackPanel Grid.Row="3" Margin="22,14,22,14" Spacing="6" IsVisible="{Binding !IsRunning}">
+      <Slider Minimum="5" Maximum="480" TickFrequency="5" IsSnapToTickEnabled="True"
+              Value="{Binding DurationMinutes}" />
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Classes="k" Text="5 min" />
+        <TextBlock Grid.Column="2" Classes="k" Text="8 h" />
+      </Grid>
+    </StackPanel>
+
+    <!-- 5. Aktywna sesja -->
+    <Grid Grid.Row="4" Margin="22,14" ColumnDefinitions="Auto,*,Auto,8,Auto"
+          IsVisible="{Binding HasSession}">
+      <TextBlock Grid.Column="0" Classes="k" Text="sesja" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Classes="val" Margin="12,0,0,0" VerticalAlignment="Center"
+                 Foreground="{DynamicResource Ok}" Text="{Binding RemainingText}" />
+      <Button Grid.Column="2" Content="Przedłuż" Click="OnExtend" />
+      <Button Grid.Column="4" Classes="danger" Content="Odetnij dostęp" Click="OnEndSession" />
+    </Grid>
+
+    <!-- 6. Log -->
+    <Grid Grid.Row="5" RowDefinitions="Auto,*" Margin="22,14,22,0">
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+        <TextBlock Grid.Column="0" Classes="k" Text="log" />
+        <TextBlock Grid.Column="2" Classes="k" Text="{Binding Logs.Count}" />
+      </Grid>
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Logs}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LogEntry">
+              <Grid ColumnDefinitions="Auto,12,42,12,*" Margin="0,0,0,6">
+                <TextBlock Grid.Column="0" Text="{Binding Time}" FontSize="12"
+                           Foreground="{DynamicResource Muted}" />
+                <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="12"
+                           HorizontalAlignment="Right" Foreground="{Binding Accent}" />
+                <TextBlock Grid.Column="4" Text="{Binding Message}" FontSize="12"
+                           TextWrapping="Wrap" Foreground="{DynamicResource Body}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- 7. Podpowiedz -->
+    <TextBlock Grid.Row="6" Classes="ui" FontSize="12.5" Margin="22,14,22,14"
+               Text="{Binding Hint}" />
+
+    <!-- 8. Skroty -->
+    <Border Grid.Row="7" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
+            Padding="22,11">
+      <StackPanel Orientation="Horizontal" Spacing="20">
+        <TextBlock Classes="k" FontSize="11.5">
+          <Run Text="^S" /><Run Text=" " /><Run Text="{Binding ServerButtonText}"
+                                               Foreground="{DynamicResource Soft}" />
+        </TextBlock>
+        <TextBlock Classes="k" FontSize="11.5">
+          <Run Text="^P" /><Run Text=" " /><Run Text="nowy kod" Foreground="{DynamicResource Soft}" />
+        </TextBlock>
+        <TextBlock Classes="k" FontSize="11.5">
+          <Run Text="^D" /><Run Text=" " /><Run Text="kopiuj" Foreground="{DynamicResource Soft}" />
+        </TextBlock>
+        <TextBlock Classes="k" FontSize="11.5">
+          <Run Text="^F" /><Run Text=" " /><Run Text="firewall" Foreground="{DynamicResource Soft}" />
+        </TextBlock>
+      </StackPanel>
     </Border>
   </Grid>
 </Window>
