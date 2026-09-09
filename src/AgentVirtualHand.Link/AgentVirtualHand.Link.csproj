@@ -8,6 +8,7 @@
     <AssemblyName>avh-link</AssemblyName>
     <RootNamespace>AgentVirtualHand.Link</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>embedded</DebugType>
   </PropertyGroup>

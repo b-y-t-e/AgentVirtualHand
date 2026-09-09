@@ -7,3 +7,6 @@ publish/
 # robocze wyniki diagnostyki
 *WYNIK*.txt
 AgentVirtualHand-blad.log
+
+# mTiles workspace state
+.mtiles/

@@ -61,14 +61,17 @@ Tryb bez pulpitu (serwer, SSH) - kod zaproszenia ladzie na konsoli, dostep otwie
 AgentVirtualHand --headless --port 8787 --minutes 60
 ```
 
-Wydanie samodzielne (jeden plik, bez zainstalowanego .NET na maszynie docelowej):
+Wydanie samodzielne (jeden plik na aplikacje, bez zainstalowanego .NET na maszynie docelowej):
 
 ```bash
-dotnet publish src/AgentVirtualHand      -c Release -r win-x64   --self-contained -p:PublishSingleFile=true
-dotnet publish src/AgentVirtualHand      -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
-dotnet publish src/AgentVirtualHand.Link -c Release -r win-x64   --self-contained -p:PublishSingleFile=true
-dotnet publish src/AgentVirtualHand.Link -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
+python build.py                     # win-x64 -> publish/win-x64
+python build.py --rid linux-x64     # wydanie dla Linuksa
+python build.py --only hub --clean  # tylko wybrana aplikacja, z czyszczeniem katalogu
 ```
+
+Skrypt sklada trzy pliki: `AgentVirtualHand` (maszyna sterowana), `avh-hub` i `avh-link`
+(dwa rodzaje klienta). Runtime .NET i biblioteki natywne siedza w srodku, wiec na maszynie
+docelowej wystarczy skopiowac jeden plik.
 
 ## Dwa rodzaje klienta
 
