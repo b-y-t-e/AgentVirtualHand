@@ -65,6 +65,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<LogEntry> Logs { get; } = [];
 
+    /// <summary>Blokada okna hasłem - pierwsze uruchomienie wymusza jego ustawienie.</summary>
+    public LockViewModel Lock { get; } = new(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AgentVirtualHand"));
+
     /// <summary>Odtwarza ustawienia z poprzedniego uruchomienia. Wywolywane raz, przed pierwszym odswiezeniem adresow.</summary>
     private void LoadSettings()
     {

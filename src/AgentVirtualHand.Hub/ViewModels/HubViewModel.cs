@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AgentVirtualHand.Hub.Services;
+using AgentVirtualHand.ViewModels;
 using Avalonia.Media;
 using Avalonia.Threading;
 
@@ -52,6 +53,7 @@ public sealed class ConnectionRow : INotifyPropertyChanged
     });
 
     public bool IsOpen => _connection.IsOpen;
+    public bool IsConnected => _connection.IsConnected;
     public string ToggleText => _connection.IsOpen ? "Wyłącz" : "Włącz";
 
     public bool Busy
@@ -84,6 +86,7 @@ public sealed class ConnectionRow : INotifyPropertyChanged
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusAccent));
         OnPropertyChanged(nameof(IsOpen));
+        OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(ToggleText));
     }
 
@@ -106,14 +109,26 @@ public sealed class HubViewModel : INotifyPropertyChanged
         foreach (var entry in ConnectionStore.Load()) Add(entry, autoStart: entry.Enabled);
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _timer.Tick += (_, _) => { foreach (var row in Connections) row.RefreshAll(); };
+        _timer.Tick += (_, _) =>
+        {
+            foreach (var row in Connections) row.RefreshAll();
+            OnPropertyChanged(nameof(ConnectionsSummary));
+        };
         _timer.Start();
 
         Log("app", $"AgentVirtualHand Hub - {Connections.Count} zapisanych połączeń");
     }
 
+    /// <summary>Blokada okna hasłem - hub trzyma tokeny do cudzych maszyn, więc nie może stać otworem.</summary>
+    public LockViewModel Lock { get; } = new(HubPaths.Root);
+
     public ObservableCollection<ConnectionRow> Connections { get; } = [];
     public ObservableCollection<LogEntry> Logs { get; } = [];
+
+    /// <summary>Krótkie podsumowanie w pasku: ile maszyn faktycznie odpowiada.</summary>
+    public string ConnectionsSummary => Connections.Count == 0
+        ? "brak komputerów"
+        : $"{Connections.Count(row => row.IsConnected)} z {Connections.Count} połączonych";
 
     public bool HasConnections => Connections.Count > 0;
     public bool HasNoConnections => Connections.Count == 0;
@@ -182,6 +197,9 @@ public sealed class HubViewModel : INotifyPropertyChanged
         await row.Connection.StopAsync();
         Connections.Remove(row);
         ConnectionStore.Forget(row.Entry);
+        OnPropertyChanged(nameof(HasConnections));
+        OnPropertyChanged(nameof(HasNoConnections));
+        OnPropertyChanged(nameof(ConnectionsSummary));
 
         Log("link", $"{row.Name}: usunięte razem ze sparowaniem");
         Hint = $"Usunięto \"{row.Name}\". Ponowne dodanie wymaga nowego kodu zaproszenia.";
@@ -222,6 +240,7 @@ public sealed class HubViewModel : INotifyPropertyChanged
         Connections.Add(row);
         OnPropertyChanged(nameof(HasConnections));
         OnPropertyChanged(nameof(HasNoConnections));
+        OnPropertyChanged(nameof(ConnectionsSummary));
 
         if (autoStart)
         {

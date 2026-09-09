@@ -23,9 +23,22 @@ Dostep jest **osobno otwierany**, **czasowy** i **w pelni widoczny** w logu apli
 Pierwsze polecenie zestawia link w tle (kilkanascie sekund), kolejne ida w okolo 0,7 s.
 `avh-link down` zamyka polaczenie w tle, `avh-link up` podnosi je z powrotem.
 
+## Blokada okna haslem
+
+Oba okna - maszyny sterowanej i huba - sa chronione haslem. Pierwsze uruchomienie **wymusza**
+jego ustawienie; nie ma hasla domyslnego, bo znalby je kazdy, kto pobierze plik.
+Po **30 sekundach** bez ruchu myszy i klawiatury tresc okna znika i wraca dopiero po podaniu
+hasla. Bledna proba kosztuje **10 sekund** odliczania, w trakcie ktorego przycisk nie dziala.
+
+Trzymany jest wylacznie skrot PBKDF2-SHA256 (210 tys. iteracji, losowa sol) w pliku
+`lock.json` obok ustawien aplikacji. Zapomnianego hasla nie da sie odzyskac - kasuje sie
+ten plik i ustawia nowe przy kolejnym starcie.
+
 ## Bezpieczenstwo
 
 Co jest zrobione:
+
+- okno zablokowane haslem po 30 s bezczynnosci, z kara 10 s za bledna probe;
 
 - serwer HTTP sluzy tylko za wewnetrzna szyne i sluchaa **wylacznie na 127.0.0.1** - z sieci
   nie ma czego skanowac, zaden port nie jest wystawiony;
@@ -58,7 +71,7 @@ dotnet build -c Release AgentVirtualHand.slnx      # kompilacja calosci
 Tryb bez pulpitu (serwer, SSH) - kod zaproszenia ladzie na konsoli, dostep otwiera sie od razu:
 
 ```bash
-AgentVirtualHand --headless --port 8787 --minutes 60
+avh --headless --port 8787 --minutes 60
 ```
 
 Wydanie samodzielne (jeden plik na aplikacje, bez zainstalowanego .NET na maszynie docelowej):
@@ -69,7 +82,7 @@ python build.py --rid linux-x64     # wydanie dla Linuksa
 python build.py --only hub --clean  # tylko wybrana aplikacja, z czyszczeniem katalogu
 ```
 
-Skrypt sklada trzy pliki: `AgentVirtualHand` (maszyna sterowana), `avh-hub` i `avh-link`
+Skrypt sklada trzy pliki: `avh` (maszyna sterowana), `avh-hub` i `avh-link`
 (dwa rodzaje klienta). Runtime .NET i biblioteki natywne siedza w srodku, wiec na maszynie
 docelowej wystarczy skopiowac jeden plik.
 

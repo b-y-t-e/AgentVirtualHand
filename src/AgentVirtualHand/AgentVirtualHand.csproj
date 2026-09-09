@@ -9,6 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>avh</AssemblyName>
     <RootNamespace>AgentVirtualHand</RootNamespace>
 
     <!-- Publikacja do jednego pliku .exe: biblioteki natywne (Skia, HarfBuzz, ANGLE)

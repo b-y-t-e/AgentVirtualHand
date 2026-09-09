@@ -31,6 +31,10 @@
   <ItemGroup>
     <!-- Koperta protokolu jest wspolna z hostem - jeden plik, zeby strony nie rozjechaly sie w locie. -->
     <Compile Include="..\AgentVirtualHand\Server\LinkProtocol.cs" Link="LinkProtocol.cs" />
+    <!-- Blokada okna jest wspolna dla obu aplikacji okienkowych. -->
+    <Compile Include="..\AgentVirtualHand\Services\PasswordGate.cs" Link="PasswordGate.cs" />
+    <Compile Include="..\AgentVirtualHand\ViewModels\LockViewModel.cs" Link="LockViewModel.cs" />
+    <AvaloniaResource Include="..\AgentVirtualHand\Styles\Theme.axaml" Link="Styles\Theme.axaml" />
   </ItemGroup>
 
 </Project>

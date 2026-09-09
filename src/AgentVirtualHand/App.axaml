@@ -5,6 +5,7 @@
 
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="avares://avh/Styles/Theme.axaml" />
   </Application.Styles>
 
   <Application.Resources>
@@ -18,19 +19,39 @@
     <Color x:Key="SystemAccentColorDark3">#24509F</Color>
 
     <SolidColorBrush x:Key="Bg">#0E1116</SolidColorBrush>
-    <SolidColorBrush x:Key="Card">#161A22</SolidColorBrush>
+    <SolidColorBrush x:Key="Raised">#12161D</SolidColorBrush>
     <SolidColorBrush x:Key="Line">#1B212B</SolidColorBrush>
     <SolidColorBrush x:Key="FieldLine">#232935</SolidColorBrush>
-    <SolidColorBrush x:Key="Field">#151A22</SolidColorBrush>
     <SolidColorBrush x:Key="Text">#E6E9EF</SolidColorBrush>
     <SolidColorBrush x:Key="Body">#D5DAE3</SolidColorBrush>
-    <SolidColorBrush x:Key="Muted">#5C6474</SolidColorBrush>
     <SolidColorBrush x:Key="Soft">#8B95A7</SolidColorBrush>
+    <SolidColorBrush x:Key="Muted">#5C6474</SolidColorBrush>
     <SolidColorBrush x:Key="Accent">#4C8DFF</SolidColorBrush>
     <SolidColorBrush x:Key="Link">#A9D3FF</SolidColorBrush>
     <SolidColorBrush x:Key="Ok">#63D19B</SolidColorBrush>
+    <SolidColorBrush x:Key="Warn">#FFB454</SolidColorBrush>
     <SolidColorBrush x:Key="Danger">#FF7B72</SolidColorBrush>
     <SolidColorBrush x:Key="DangerLine">#35222A</SolidColorBrush>
+
+    <!--
+      Pole tekstowe ma ramke ze wszystkich stron, a fokus zmienia jej kolor na akcent.
+      Wersja z samym podkresleniem przegrywala z ramka fokusu wbudowana w motyw Fluent,
+      wiec zamiast niespojnego efektu lepiej jest przyjac ramke swiadomie.
+    -->
+    <Thickness x:Key="TextControlBorderThemeThickness">1</Thickness>
+    <Thickness x:Key="TextControlBorderThemeThicknessFocused">1</Thickness>
+    <SolidColorBrush x:Key="TextControlBorderBrush">#232935</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#2E3746</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused">#4C8DFF</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBackground">#12161D</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#161B24</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBackgroundFocused">#161B24</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlForeground">#E6E9EF</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlForegroundPointerOver">#E6E9EF</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlForegroundFocused">#E6E9EF</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground">#48505F</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused">#48505F</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlSelectionHighlightColor">#26456F</SolidColorBrush>
   </Application.Resources>
 
 </Application>

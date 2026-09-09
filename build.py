@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent
 APPS: dict[str, tuple[str, str, str]] = {
     "host": (
         "src/AgentVirtualHand",
-        "AgentVirtualHand",
+        "avh",
         "maszyna sterowana: wystawia sie przez link",
     ),
     "hub": (
