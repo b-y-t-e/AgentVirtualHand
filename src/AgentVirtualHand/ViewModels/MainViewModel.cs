@@ -29,10 +29,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SessionManager _sessions = new();
     private readonly ShellRunner _shell = new();
     private readonly RemoteHttpServer _server;
+    private readonly LinkHost _link;
     private readonly DispatcherTimer _timer;
 
     private string _port = "8787";
-    private bool _lanVisible = true;
     private int _durationMinutes = 60;
     private string _pairCode = "";
     private Bitmap? _qrImage;
@@ -41,74 +41,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private IBrush _statusAccent = Brush.Parse("#8B95A7");
     private string _remainingText = "";
     private string _clientText = "";
-    private string _hint = "Uruchom serwer, potem kliknij Paruj.";
-    private LocalAddress? _selectedAddress;
-    private string? _preferredAddress;
+    private string _hint = "Uruchom link, przekaż kod drugiej maszynie, potem otwórz dostęp.";
     private bool _settingsLoaded;
 
     public MainViewModel()
     {
         _server = new RemoteHttpServer(_sessions, _shell);
+        _link = new LinkHost(_sessions);
         _sessions.Audit += (kind, message) => Log(kind, message);
         _server.Audit += (kind, message) => Log(kind, message);
+        _link.Audit += (kind, message) => Log(kind, message);
         _sessions.Changed += () => Dispatcher.UIThread.Post(Refresh);
+        _link.Changed += () => Dispatcher.UIThread.Post(Refresh);
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
 
         LoadSettings();
-        RefreshAddresses();
         Log("app", $"AgentVirtualHand {AppInfo.Version} na {Environment.MachineName}");
         Refresh();
     }
 
     public ObservableCollection<LogEntry> Logs { get; } = [];
-
-    /// <summary>Adresy, pod ktorymi ta maszyna jest osiagalna - Ethernet, Wi-Fi, Tailscale, VPN.</summary>
-    public ObservableCollection<LocalAddress> Addresses { get; } = [];
-
-    /// <summary>Adres pokazywany klientowi: w QR, w polu "adres" i w danych do schowka.</summary>
-    public LocalAddress? SelectedAddress
-    {
-        get => _selectedAddress;
-        set
-        {
-            if (!Set(ref _selectedAddress, value)) return;
-            OnPropertyChanged(nameof(BaseUrl));
-            RebuildPairArtifacts();
-            SaveSettings();
-        }
-    }
-
-    public bool HasManyAddresses => Addresses.Count > 1;
-
-    /// <summary>
-    /// Odswieza liste adresow zachowujac wybor uzytkownika - interfejsy potrafia
-    /// pojawiac sie i znikac (VPN, Tailscale) w trakcie dzialania aplikacji.
-    /// </summary>
-    public void RefreshAddresses()
-    {
-        var found = NetworkInfo.LocalAddresses();
-        if (found.Select(a => a.Address).SequenceEqual(Addresses.Select(a => a.Address))) return;
-
-        var keep = SelectedAddress?.Address ?? _preferredAddress;
-        Addresses.Clear();
-        foreach (var address in found) Addresses.Add(address);
-
-        SelectedAddress = Addresses.FirstOrDefault(a => a.Address == keep) ?? Addresses.FirstOrDefault();
-        OnPropertyChanged(nameof(HasManyAddresses));
-    }
-
-    /// <summary>Po zmianie adresu kod parowania zostaje ten sam, ale QR i instrukcja musza wskazac nowy host.</summary>
-    private void RebuildPairArtifacts()
-    {
-        if (!HasPairCode) return;
-
-        QrImage = QrGenerator.Create($"{BaseUrl}/pair?code={PairCode}");
-        ConnectionText = $"{BaseUrl}   kod: {PairCode}";
-        ClipboardPayload = BuildPayload(BaseUrl, PairCode);
-    }
 
     /// <summary>Odtwarza ustawienia z poprzedniego uruchomienia. Wywolywane raz, przed pierwszym odswiezeniem adresow.</summary>
     private void LoadSettings()
@@ -116,14 +71,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var saved = AppSettings.Load();
 
         if (saved.Port is { Length: > 0 }) _port = saved.Port;
-        if (saved.LanVisible is { } lan) _lanVisible = lan;
         if (saved.DurationMinutes is { } minutes)
         {
             _durationMinutes = Math.Clamp(minutes, 5, 480);
             _sessions.SessionDuration = TimeSpan.FromMinutes(_durationMinutes);
         }
 
-        _preferredAddress = saved.Address;
         _settingsLoaded = true;
     }
 
@@ -131,8 +84,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!_settingsLoaded) return;
 
-        _preferredAddress = SelectedAddress?.Address ?? _preferredAddress;
-        new AppSettings(Port, LanVisible, DurationMinutes, _preferredAddress).Save();
+        new AppSettings(Port, DurationMinutes).Save();
     }
 
     public string MachineName => Environment.MachineName;
@@ -142,23 +94,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _port;
         set { if (Set(ref _port, value)) SaveSettings(); }
     }
-
-    public bool LanVisible
-    {
-        get => _lanVisible;
-        set
-        {
-            if (!Set(ref _lanVisible, value)) return;
-            OnPropertyChanged(nameof(VisibilityHint));
-            OnPropertyChanged(nameof(BaseUrl));
-            RebuildPairArtifacts();
-            SaveSettings();
-        }
-    }
-
-    public string VisibilityHint => LanVisible
-        ? "Widoczny w sieci lokalnej - tego używaj do zdalnej pomocy."
-        : "Tylko 127.0.0.1 - połączysz się wyłącznie z tej maszyny (np. przez tunel SSH).";
 
     public int DurationMinutes
     {
@@ -177,13 +112,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         : $"{DurationMinutes} min";
 
     public bool IsRunning => _server.IsRunning;
-    public string ServerButtonText => IsRunning ? "Zatrzymaj serwer" : "Uruchom serwer";
+    public string ServerButtonText => IsRunning ? "Zatrzymaj link" : "Uruchom link";
     public bool CanPair => IsRunning && _sessions.State != AccessState.Active;
     public bool HasSession => _sessions.State == AccessState.Active;
-    public bool HasPairCode => _pairCode.Length > 0;
+    /// <summary>Kod zaproszenia do wpisania raz po drugiej stronie: avh-link join &lt;kod&gt;.</summary>
+    public string InvitationCode => _link.InvitationCode;
 
-    /// <summary>Serwer dziala, ale nie ma jeszcze kodu - pokazujemy zachete do parowania.</summary>
-    public bool ShowPairPrompt => IsRunning && !HasPairCode;
+    public bool HasInvitation => InvitationCode.Length > 0;
+
+    /// <summary>Link działa, ale dostęp nie jest jeszcze otwarty.</summary>
+    public bool ShowPairPrompt => IsRunning && !HasSession;
+
+    public bool LinkConnected => _link.IsConnected;
+
+    public string PeerText => _link.IsConnected ? "połączona" : "czeka na drugą maszynę";
 
     public string PairCode
     {
@@ -191,7 +133,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set
         {
             if (!Set(ref _pairCode, value)) return;
-            OnPropertyChanged(nameof(HasPairCode));
             OnPropertyChanged(nameof(ShowPairPrompt));
         }
     }
@@ -241,25 +182,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Pełna instrukcja do wklejenia w Claude Code - budowana przy parowaniu.</summary>
     public string ClipboardPayload { get; private set; } = "";
 
-    public string BaseUrl
-    {
-        get
-        {
-            var host = LanVisible ? SelectedAddress?.Address ?? NetworkInfo.PrimaryAddress() : "127.0.0.1";
-            return $"http://{host}:{Port}";
-        }
-    }
-
     public async Task ToggleServerAsync()
     {
         if (_server.IsRunning)
         {
-            _sessions.Revoke("serwer zatrzymany");
+            _sessions.Revoke("link zatrzymany");
+            await _link.StopAsync();
             await _server.StopAsync();
             PairCode = "";
             QrImage = null;
             ConnectionText = "";
-            Hint = "Serwer zatrzymany - maszyna jest odcięta.";
+            Hint = "Link zatrzymany - maszyna jest odcięta.";
         }
         else
         {
@@ -274,8 +207,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // Zajetosc portu i tak zglosi sam start serwera.
             try
             {
-                await _server.StartAsync(new ServerOptions(port, LanVisible));
-                Hint = "Serwer działa. Kliknij Paruj, żeby wpuścić klienta.";
+                await _server.StartAsync(new ServerOptions(port));
+                _link.LoopbackPort = port;
+                await _link.StartAsync(InvitationWindow);
+                RebuildInvitationArtifacts();
+                Hint = "Link działa. Przekaż kod drugiej maszynie, potem otwórz dostęp.";
             }
             catch (Exception ex)
             {
@@ -289,20 +225,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Refresh();
     }
 
-    public void StartPairing()
+    /// <summary>Kod zaproszenia jest jednorazowy - po sparowaniu druga maszyna wraca bez niego.</summary>
+    public static TimeSpan InvitationWindow => TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Otwiera okno dostępu. Sparowanie linku potwierdza tożsamość maszyny,
+    /// ale wpuszczenie jej jest osobną decyzją i wygasa razem z sesją.
+    /// </summary>
+    public void OpenAccess()
     {
         if (!CanPair) return;
 
         try
         {
-            var code = _sessions.StartPairing();
-            PairCode = code;
-
-            var url = $"{BaseUrl}/pair?code={code}";
-            QrImage = QrGenerator.Create(url);
-            ConnectionText = $"{BaseUrl}   kod: {code}";
-            ClipboardPayload = BuildPayload(BaseUrl, code);
-            Hint = "Kod ważny 5 minut. Skopiuj dane i wklej je w Claude Code.";
+            var session = _sessions.OpenForLink("avh-link");
+            Hint = $"Dostęp otwarty do {session.ExpiresAt:HH:mm}. Skopiuj instrukcję i wklej ją w Claude Code.";
         }
         catch (Exception ex)
         {
@@ -312,14 +249,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Refresh();
     }
 
+    /// <summary>Nowy kod zaproszenia - stary przestaje wpuszczać kogokolwiek.</summary>
+    public async Task NewInvitationAsync()
+    {
+        if (!IsRunning) return;
+
+        try
+        {
+            await _link.RenewInvitationAsync();
+            RebuildInvitationArtifacts();
+            Hint = "Nowy kod zaproszenia. Stary już nie zadziała.";
+        }
+        catch (Exception ex)
+        {
+            Hint = ex.Message;
+        }
+
+        Refresh();
+    }
+
+    private void RebuildInvitationArtifacts()
+    {
+        var code = _link.InvitationCode;
+        if (code.Length == 0)
+        {
+            QrImage = null;
+            ConnectionText = "";
+            ClipboardPayload = "";
+            return;
+        }
+
+        QrImage = QrGenerator.Create(code);
+        ConnectionText = code;
+        ClipboardPayload = BuildPayload(code);
+    }
+
     public void EndSession()
     {
         _sessions.Revoke("przerwane ręcznie z GUI");
         _shell.KillAll();
-        PairCode = "";
-        QrImage = null;
-        ConnectionText = "";
-        Hint = "Dostęp odcięty. Aby wpuścić ponownie, sparuj od nowa.";
+        Hint = "Dostęp odcięty. Link nadal działa - możesz otworzyć dostęp ponownie.";
         Refresh();
     }
 
@@ -335,30 +304,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Log("app", "Dane połączenia skopiowane do schowka");
     }
 
-    /// <summary>Otwiera albo zamyka port w firewallu systemowym (Windows netsh / Linux ufw, firewalld, iptables).</summary>
-    public async Task ConfigureFirewallAsync(bool open)
-    {
-        if (!int.TryParse(Port, out var port) || port is < 1 or > 65535)
-        {
-            Hint = "Najpierw ustaw poprawny port.";
-            return;
-        }
-
-        Hint = open ? "Otwieram port w firewallu..." : "Usuwam regułę z firewalla...";
-
-        var result = open
-            ? await FirewallService.OpenPortAsync(port)
-            : await FirewallService.ClosePortAsync(port);
-
-        Hint = result.Message;
-        Log(result.Success ? "app" : "deny", "Firewall: " + result.Message);
-    }
-
-    /// <summary>
-    /// Wołane z wątku UI przy zamykaniu okna. Zatrzymanie Kestrela musi się odbyć poza wątkiem UI -
-    /// czekanie na niego wprost zakleszcza, bo kontynuacje zadań wracają na dyspozytora UI,
-    /// który jest właśnie zablokowany (proces zostawał z zamkniętym oknem i żywym serwerem).
-    /// </summary>
     public void ShutdownBlocking()
     {
         _timer.Stop();
@@ -372,8 +317,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void Refresh()
     {
-        RefreshAddresses();
-
         var state = _sessions.State;
 
         var (statusText, statusAccent) = (IsRunning, state) switch
@@ -407,21 +350,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(IsRunning));
-        OnPropertyChanged(nameof(BaseUrl));
+        OnPropertyChanged(nameof(InvitationCode));
+        OnPropertyChanged(nameof(HasInvitation));
+        OnPropertyChanged(nameof(LinkConnected));
+        OnPropertyChanged(nameof(PeerText));
         OnPropertyChanged(nameof(ServerButtonText));
         OnPropertyChanged(nameof(CanPair));
         OnPropertyChanged(nameof(HasSession));
         OnPropertyChanged(nameof(ShowPairPrompt));
     }
 
-    private string BuildPayload(string baseUrl, string code) => $$"""
-        AVH {{baseUrl}} = zdalna powloka+pliki na {{Environment.MachineName}}. Dzialasz na koncie wlasciciela; operacje destrukcyjne najpierw potwierdz.
-        PAIR (kod {{code}}, jednorazowy, 5 min): curl -s -X POST {{baseUrl}}/api/pair -H "Content-Type: application/json" -d "{\"code\":\"{{code}}\",\"client\":\"claude-code\"}" -> wez "token"; potem do kazdego requestu: -H "Authorization: Bearer <token>"
-        API (prefix {{baseUrl}}): GET /api/help (pelna instrukcja) | GET /api/system (os, shell, dyski, home) | GET /api/session (pozostaly czas)
-        EXEC: POST /api/exec {"command":"...","cwd":"...","timeoutSeconds":120} -> exitCode/stdout/stderr/timedOut
-        BG: POST /api/exec/start (te same pola) -> {"id"} | GET /api/exec/<id>?outOffset=N&errOffset=N (output przyrostowo; running, exitCode) | POST /api/exec/<id>/stdin (body=tekst) | POST /api/exec/<id>/kill
-        FS: GET /api/fs/list?path= | GET /api/fs/read?path=&maxBytes= | GET /api/fs/download?path= | POST /api/fs/write {"path","content"|"contentBase64","append"?} | POST /api/fs/upload?path= (body=bajty) | POST /api/fs/mkdir {"path"} | POST /api/fs/delete {"path","recursive"?} | POST /api/fs/move {"from","to"}
-        NOTY: sciezki Windows w JSON z podwojnym backslashem lub /; dlugie operacje (instalacje, kompilacje) przez BG; sesja wygasa po {{DurationText}} od sparowania -> 401 (popros o nowe parowanie); koniec pracy: POST /api/session/end.
+    private string BuildPayload(string code) => $$"""
+        AVH = zdalna powloka+pliki na {{Environment.MachineName}} przez Tailcat.Link (bez adresow IP i portow).
+        Dzialasz na koncie wlasciciela; operacje destrukcyjne najpierw potwierdz.
+        POLACZENIE (raz, kod jednorazowy wazny 15 min): avh-link join {{code}}
+        Potem kod nie jest juz potrzebny - klient pamieta sparowanie. Sprawdz: avh-link status
+        EXEC: avh-link exec "<polecenie>" [--cwd <sciezka>] [--timeout <sekundy>] -> exitCode/stdout/stderr
+        BG (dlugie operacje: instalacje, kompilacje): avh-link bg start "<polecenie>" -> id
+             avh-link bg out <id> [--out-offset N] [--err-offset N] | avh-link bg stdin <id> "<tekst>" | avh-link bg kill <id>
+        PLIKI: avh-link fs list <sciezka> | fs read <sciezka> [--max-bytes N] | fs download <zdalna> <lokalna>
+             fs write <sciezka> --text "<tresc>" [--append] | fs upload <lokalna> <zdalna>
+             fs mkdir <sciezka> | fs delete <sciezka> [--recursive] | fs move <z> <do>
+        RESZTA: avh-link system (os, shell, dyski, home) | avh-link session (pozostaly czas) | avh-link help
+        NOTY: sciezki Windows pisz z ukosnikiem / albo podwojnym backslashem; dostep wygasa po {{DurationText}}
+        -> 401 (popros wlasciciela o ponowne otwarcie dostepu); koniec pracy: avh-link session end.
         """;
 
     /// <summary>

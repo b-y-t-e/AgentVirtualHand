@@ -27,15 +27,15 @@ public partial class MainWindow : Window
                 break;
             case Key.P when Model.CanPair:
                 e.Handled = true;
-                Model.StartPairing();
+                Model.OpenAccess();
                 break;
-            case Key.D when Model.HasPairCode:
+            case Key.D when Model.HasInvitation:
                 e.Handled = true;
                 OnCopy(sender, new RoutedEventArgs());
                 break;
-            case Key.F:
+            case Key.N when Model.IsRunning:
                 e.Handled = true;
-                await Model.ConfigureFirewallAsync(open: true);
+                await Model.NewInvitationAsync();
                 break;
         }
     }
@@ -50,7 +50,13 @@ public partial class MainWindow : Window
         await Model.ToggleServerAsync();
     }
 
-    private void OnPair(object? sender, RoutedEventArgs e) => Model?.StartPairing();
+    private void OnOpenAccess(object? sender, RoutedEventArgs e) => Model?.OpenAccess();
+
+    private async void OnNewInvitation(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null) return;
+        await Model.NewInvitationAsync();
+    }
 
     private void OnEndSession(object? sender, RoutedEventArgs e) => Model?.EndSession();
 
@@ -64,15 +70,4 @@ public partial class MainWindow : Window
         Model.NoteCopied();
     }
 
-    private async void OnOpenFirewall(object? sender, RoutedEventArgs e)
-    {
-        if (Model is null) return;
-        await Model.ConfigureFirewallAsync(open: true);
-    }
-
-    private async void OnCloseFirewall(object? sender, RoutedEventArgs e)
-    {
-        if (Model is null) return;
-        await Model.ConfigureFirewallAsync(open: false);
-    }
-}
+}

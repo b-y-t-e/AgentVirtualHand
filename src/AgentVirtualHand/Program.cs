@@ -28,8 +28,8 @@ internal static class Program
             .LogToTrace();
 
     /// <summary>
-    /// Tryb bez GUI - na maszynie bez pulpitu (serwer, SSH). Wypisuje kod parowania na konsole.
-    /// Użycie: AgentVirtualHand --headless [--port 8787] [--minutes 60] [--local]
+    /// Tryb bez GUI - na maszynie bez pulpitu (serwer, SSH). Wypisuje kod zaproszenia na konsole.
+    /// Użycie: AgentVirtualHand --headless [--port 8787] [--minutes 60]
     /// </summary>
     private static async Task<int> RunHeadless(string[] args)
     {
@@ -39,25 +39,27 @@ internal static class Program
 
         var port = ArgValue(args, "--port", 8787);
         var minutes = ArgValue(args, "--minutes", 60);
-        var lanVisible = !args.Contains("--local");
 
         var sessions = new SessionManager { SessionDuration = TimeSpan.FromMinutes(minutes) };
         var shell = new ShellRunner();
         var server = new RemoteHttpServer(sessions, shell);
+        await using var link = new LinkHost(sessions) { LoopbackPort = port };
 
         sessions.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
         server.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
+        link.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
 
-        await server.StartAsync(new ServerOptions(port, lanVisible));
+        await server.StartAsync(new ServerOptions(port));
+        await link.StartAsync(TimeSpan.FromMinutes(15));
 
-        var host = lanVisible ? NetworkInfo.PrimaryAddress() : "127.0.0.1";
-        var code = sessions.StartPairing();
+        // Tryb headless nie ma komu klikac "otworz dostep" - okno otwiera sie od razu.
+        sessions.OpenForLink("avh-link");
 
         Console.WriteLine();
-        Console.WriteLine($"  Adres:          http://{host}:{port}");
-        Console.WriteLine($"  Kod parowania:  {code}   (ważny 5 minut, jednorazowy)");
-        Console.WriteLine($"  Czas dostępu:   {minutes} min od sparowania");
-        Console.WriteLine($"  Instrukcja:     GET http://{host}:{port}/api/help");
+        Console.WriteLine($"  Kod zaproszenia:  {link.InvitationCode}");
+        Console.WriteLine("  Druga maszyna:    avh-link join <kod>   (kod jednorazowy, ważny 15 minut)");
+        Console.WriteLine($"  Czas dostępu:     {minutes} min");
+        Console.WriteLine("  Instrukcja:       avh-link help");
         Console.WriteLine();
         Console.WriteLine("  Ctrl+C kończy sesję i odcina dostęp.");
         Console.WriteLine();
@@ -67,6 +69,7 @@ internal static class Program
         await stop.Task;
 
         sessions.Revoke("zamknięcie trybu headless");
+        await link.StopAsync();
         await server.StopAsync();
         return 0;
     }

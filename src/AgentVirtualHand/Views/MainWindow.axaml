@@ -148,35 +148,34 @@
       <StackPanel Spacing="7">
         <TextBlock Classes="k" Text="maszyna odcięta" />
         <TextBlock Classes="ui" MaxWidth="520" HorizontalAlignment="Left"
-                   Text="Uruchom serwer, potem wygeneruj jednorazowy kod. Do sparowania nikt się nie połączy, a po wygaśnięciu okna dostęp znika sam." />
+                   Text="Uruchom link, przekaż kod zaproszenia drugiej maszynie, potem otwórz dostęp. Bez adresu IP i bez otwartego portu - połączenie zestawia Tailcat." />
       </StackPanel>
-      <Grid ColumnDefinitions="Auto,8,*,8,Auto">
-        <Button Grid.Column="0" Classes="primary" Content="Uruchom serwer" Click="OnToggleServer" />
-        <Button Grid.Column="2" Content="Odblokuj port w firewallu" Click="OnOpenFirewall"
-                HorizontalAlignment="Stretch" />
-        <Button Grid.Column="4" Content="Cofnij" Click="OnCloseFirewall" />
+      <Grid ColumnDefinitions="Auto,*">
+        <Button Grid.Column="0" Classes="primary" Content="Uruchom link" Click="OnToggleServer" />
       </Grid>
     </StackPanel>
 
     <!-- 2b. Serwer dziala, brak kodu -->
     <StackPanel Grid.Row="1" Margin="22,24,22,22" Spacing="16" IsVisible="{Binding ShowPairPrompt}">
       <StackPanel Spacing="5">
-        <TextBlock Classes="k" Text="adres" />
-        <SelectableTextBlock Text="{Binding BaseUrl}" FontSize="13" Foreground="{DynamicResource Link}" />
+        <TextBlock Classes="k" Text="kod zaproszenia" />
+        <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="15"
+                             Foreground="{DynamicResource Link}" TextWrapping="Wrap" />
       </StackPanel>
       <TextBlock Classes="ui" MaxWidth="520" HorizontalAlignment="Left"
-                 Text="Kliknij Paruj - aplikacja wygeneruje jednorazowy kod, adres i kod QR. Po sparowaniu nikt inny się nie podłączy." />
-      <Grid ColumnDefinitions="Auto,8,*">
-        <Button Grid.Column="0" Classes="primary" Content="Paruj" Width="120"
-                IsEnabled="{Binding CanPair}" Click="OnPair" />
-        <Button Grid.Column="2" Content="Zatrzymaj serwer" Click="OnToggleServer"
+                 Text="Na drugiej maszynie: avh-link join &lt;kod&gt;. Kod jest jednorazowy - potem klient wraca bez niego. Dostęp otwierasz osobno i wygasa sam." />
+      <Grid ColumnDefinitions="Auto,8,Auto,8,*">
+        <Button Grid.Column="0" Classes="primary" Content="Otwórz dostęp" Width="140"
+                IsEnabled="{Binding CanPair}" Click="OnOpenAccess" />
+        <Button Grid.Column="2" Content="Nowy kod" Click="OnNewInvitation" />
+        <Button Grid.Column="4" Content="Zatrzymaj link" Click="OnToggleServer"
                 HorizontalAlignment="Left" />
       </Grid>
     </StackPanel>
 
     <!-- 2c. Kod parowania + QR -->
     <Grid Grid.Row="1" Margin="22,22,22,20" ColumnDefinitions="132,22,*"
-          IsVisible="{Binding HasPairCode}">
+          IsVisible="{Binding HasSession}">
       <Border Grid.Column="0" Width="132" Height="132" CornerRadius="4" Padding="9"
               VerticalAlignment="Top" Background="White">
         <Image Source="{Binding QrImage}" />
@@ -184,29 +183,28 @@
 
       <StackPanel Grid.Column="2" Spacing="14">
         <StackPanel Spacing="6">
-          <TextBlock Classes="k" Text="kod parowania" />
-          <TextBlock Text="{Binding PairCode}" FontSize="26" FontWeight="SemiBold"
-                     Foreground="{DynamicResource Text}" />
-          <TextBlock Classes="k" FontSize="11.5" Text="jednorazowy, ważny 5 minut" />
+          <TextBlock Classes="k" Text="kod zaproszenia" />
+          <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text}" TextWrapping="Wrap" />
+          <TextBlock Classes="k" FontSize="11.5" Text="avh-link join &lt;kod&gt; - jednorazowy, ważny 15 minut" />
         </StackPanel>
         <StackPanel Spacing="5">
-          <TextBlock Classes="k" Text="adres" />
-          <SelectableTextBlock Text="{Binding BaseUrl}" FontSize="13"
-                               Foreground="{DynamicResource Link}" />
+          <TextBlock Classes="k" Text="druga maszyna" />
+          <TextBlock Classes="val" Text="{Binding PeerText}" />
         </StackPanel>
         <Grid ColumnDefinitions="*,8,Auto">
           <Button Grid.Column="0" Classes="primary" HorizontalAlignment="Stretch"
-                  Content="Kopiuj dane i instrukcję" Click="OnCopy" />
-          <Button Grid.Column="2" Content="Nowy kod" Click="OnPair" IsEnabled="{Binding CanPair}" />
+                  Content="Kopiuj instrukcję" Click="OnCopy" />
+          <Button Grid.Column="2" Content="Nowy kod" Click="OnNewInvitation" />
         </Grid>
       </StackPanel>
     </Grid>
     <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
 
     <!-- 3. Ustawienia jako gesta siatka -->
-    <Grid Grid.Row="2" Margin="22,16" ColumnDefinitions="*,34,*" RowDefinitions="Auto,10,Auto,10,Auto">
+    <Grid Grid.Row="2" Margin="22,16" ColumnDefinitions="*,34,*" RowDefinitions="Auto,10,Auto">
       <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="Auto,*">
-        <TextBlock Grid.Column="0" Classes="k" Text="port" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="0" Classes="k" Text="port lokalny" VerticalAlignment="Center" />
         <TextBox Grid.Column="1" Text="{Binding Port}" IsEnabled="{Binding !IsRunning}"
                  VerticalAlignment="Center" />
       </Grid>
@@ -217,10 +215,10 @@
                    TextTrimming="CharacterEllipsis" />
       </Grid>
 
-      <Grid Grid.Row="2" Grid.Column="0" ColumnDefinitions="Auto,*,Auto">
-        <TextBlock Grid.Column="0" Classes="k" Text="sieć lokalna" VerticalAlignment="Center" />
-        <ToggleSwitch Grid.Column="2" OnContent="on" OffContent="off"
-                      IsChecked="{Binding LanVisible}" IsEnabled="{Binding !IsRunning}" />
+      <Grid Grid.Row="2" Grid.Column="0" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Classes="k" Text="link" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Classes="val" Text="{Binding PeerText}"
+                   HorizontalAlignment="Right" VerticalAlignment="Center" />
       </Grid>
       <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="Auto,*">
         <TextBlock Grid.Column="0" Classes="k" Text="okno dostępu" VerticalAlignment="Center" />
@@ -228,16 +226,6 @@
                    HorizontalAlignment="Right" VerticalAlignment="Center" />
       </Grid>
 
-      <!-- Adres, ktory dostanie klient. Maszyna ma zwykle kilka: Ethernet, Wi-Fi, Tailscale, VPN. -->
-      <Grid Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" ColumnDefinitions="Auto,12,*">
-        <TextBlock Grid.Column="0" Classes="k" Text="adres" VerticalAlignment="Center" />
-        <ComboBox Grid.Column="2" ItemsSource="{Binding Addresses}"
-                  SelectedItem="{Binding SelectedAddress}"
-                  IsEnabled="{Binding LanVisible}"
-                  IsVisible="{Binding LanVisible}" />
-        <TextBlock Grid.Column="2" Classes="val" Text="127.0.0.1 · tylko ta maszyna"
-                   VerticalAlignment="Center" IsVisible="{Binding !LanVisible}" />
-      </Grid>
     </Grid>
     <Border Grid.Row="2" Classes="sep" VerticalAlignment="Bottom" />
 
@@ -298,13 +286,13 @@
                                                Foreground="{DynamicResource Soft}" />
         </TextBlock>
         <TextBlock Classes="k" FontSize="11.5">
-          <Run Text="^P" /><Run Text=" " /><Run Text="nowy kod" Foreground="{DynamicResource Soft}" />
+          <Run Text="^P" /><Run Text=" " /><Run Text="otwórz dostęp" Foreground="{DynamicResource Soft}" />
         </TextBlock>
         <TextBlock Classes="k" FontSize="11.5">
           <Run Text="^D" /><Run Text=" " /><Run Text="kopiuj" Foreground="{DynamicResource Soft}" />
         </TextBlock>
         <TextBlock Classes="k" FontSize="11.5">
-          <Run Text="^F" /><Run Text=" " /><Run Text="firewall" Foreground="{DynamicResource Soft}" />
+          <Run Text="^N" /><Run Text=" " /><Run Text="nowy kod" Foreground="{DynamicResource Soft}" />
         </TextBlock>
       </StackPanel>
     </Border>

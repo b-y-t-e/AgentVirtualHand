@@ -173,6 +173,37 @@ public sealed class SessionManager
         return created;
     }
 
+    /// <summary>
+    /// Otwiera okno dostępu dla maszyny sparowanej przez Tailcat.Link.
+    /// Kodu jednorazowego tu nie ma - tożsamość drugiej strony potwierdza samo sparowanie linku,
+    /// a to okno jest świadomą decyzją operatora i tak samo wygasa.
+    /// </summary>
+    public RemoteSession OpenForLink(string clientName)
+    {
+        RemoteSession created;
+
+        lock (_lock)
+        {
+            Sweep();
+            if (_session is not null) return _session;
+
+            var now = DateTimeOffset.Now;
+            created = new RemoteSession(
+                Token: GenerateToken(),
+                IssuedAt: now,
+                ExpiresAt: now + SessionDuration,
+                ClientAddress: "tailcat-link",
+                ClientName: string.IsNullOrWhiteSpace(clientName) ? "nieznany klient" : clientName);
+
+            _session = created;
+            _pairCode = null;
+        }
+
+        Audit?.Invoke("pair", $"OTWARTO dostęp przez link, do {created.ExpiresAt:HH:mm:ss}");
+        Changed?.Invoke();
+        return created;
+    }
+
     /// <summary>Sprawdza token z nagłówka Authorization.</summary>
     public RemoteSession? Validate(string? token)
     {

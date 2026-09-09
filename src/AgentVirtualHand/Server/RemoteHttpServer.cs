@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AgentVirtualHand.Server;
 
-public sealed record ServerOptions(int Port, bool LanVisible);
+public sealed record ServerOptions(int Port);
 
 /// <summary>
 /// Serwer HTTP wystawiający zdalne sterowanie maszyną.
@@ -50,13 +50,9 @@ public sealed class RemoteHttpServer : IAsyncDisposable
     {
         if (_app is not null) throw new InvalidOperationException("Serwer już działa.");
 
-        // Kolejnosc prob bindowania. Dla sieci lokalnej najpierw dual-stack [::], potem
-        // czysty IPv4 - to ten sam fallback, ktory Kestrel robi wewnetrznie dla IPAddress.Any,
-        // ale tam nieudana proba nie zwalnia gniazda i kolejna dostaje WSAEACCES (10013).
-        // Tutaj kazda proba dostaje wlasna instancje aplikacji, w pelni zwalniana przy bledzie.
-        var addresses = options.LanVisible
-            ? new[] { IPAddress.IPv6Any, IPAddress.Any }
-            : new[] { IPAddress.Loopback };
+        // Na tej galezi serwer nie jest wystawiany do sieci: sluchamy wylacznie na loopbacku,
+        // a jedyna droga z zewnatrz prowadzi przez Tailcat.Link (LinkHost).
+        var addresses = new[] { IPAddress.Loopback };
 
         WebApplication? started = null;
         var errors = new List<Exception>();
@@ -87,7 +83,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         var app = started;
         _app = app;
         Options = options;
-        Audit?.Invoke("server", $"Serwer wystartował na {(options.LanVisible ? "wszystkich interfejsach" : "127.0.0.1")}:{options.Port}");
+        Audit?.Invoke("server", $"API gotowe na 127.0.0.1:{options.Port} (dostep wylacznie przez link)");
     }
 
     private WebApplication BuildApp(IPAddress address, int port)

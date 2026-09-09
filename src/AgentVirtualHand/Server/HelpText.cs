@@ -1,17 +1,18 @@
 namespace AgentVirtualHand.Server;
 
-/// <summary>Instrukcja API zwracana pod /api/help - to samo trafia do schowka przy parowaniu.</summary>
+/// <summary>Instrukcja zwracana przez "avh-link help" - to samo trafia do schowka.</summary>
 public static class HelpText
 {
     public static string Markdown() => """
-        # AgentVirtualHand - zdalne sterowanie maszyną
+        # AgentVirtualHand - zdalne sterowanie maszyną przez Tailcat.Link
 
-        Każde żądanie (poza `/api/pair` i `/api/status`) wymaga nagłówka:
+        Połączenie idzie linkiem, nie po adresie IP: nie ma hosta, portu ani tokenu do przekazywania.
+        Kod zaproszenia podaje się raz (`avh-link join <kod>`), potem sparowanie jest pamiętane.
 
-            Authorization: Bearer <TOKEN>
+        Dostęp wygasa o godzinie ustawionej przez właściciela maszyny. Po wygaśnięciu każde
+        polecenie kończy się `HTTP 401` i trzeba poprosić o ponowne otwarcie dostępu w oknie aplikacji.
 
-        Token wygasa o godzinie ustawionej przy parowaniu. Po wygaśnięciu wszystkie
-        endpointy zwracają 401 i trzeba poprosic użytkownika o ponowne parowanie w GUI.
+        Pierwsze polecenie zestawia link w tle (kilkanaście sekund), kolejne idą już od razu.
 
         ## Sesja
         - `GET  /api/session`      - ile czasu zostało, kto jest połączony
@@ -43,19 +44,10 @@ public static class HelpText
         - `POST /api/fs/delete` - `{ "path": "...", "recursive": true }`
         - `POST /api/fs/move` - `{ "from": "...", "to": "..." }`
 
-        ## Przyklady curl
-        ```bash
-        curl -s -H "Authorization: Bearer $TOKEN" $BASE/api/system
-        curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-             -d '{"command":"Get-ChildItem C:\\Work | Select-Object -First 10"}' $BASE/api/exec
-        ```
+        ## Uwagi
+        - ścieżki Windows pisz z ukośnikiem `/` albo podwójnym backslashem;
+        - link trzyma się w tle; `avh-link down` go zamyka, `avh-link up` podnosi z powrotem;
+        - operacje destrukcyjne (kasowanie, nadpisywanie, instalacje) potwierdź z właścicielem maszyny.
 
-        ## Dobre praktyki
-        1. Zacznij od `GET /api/system`, żeby poznać system, powłokę i katalogi.
-        2. Długie instalacje/kompilacje odpalaj przez `/api/exec/start` i odpytuj output,
-           zamiast blokować się na `/api/exec` z dlugim timeoutem.
-        3. Przed nadpisaniem pliku przeczytaj go (`/api/fs/read`).
-        4. Pilnuj czasu z `GET /api/session` - po wygaśnięciu operacje w toku przepadają.
-        5. Wszystkie polecenia są logowane w GUI na zdalnej maszynie i są widoczne dla właściciela.
         """;
 }
