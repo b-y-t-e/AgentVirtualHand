@@ -58,6 +58,12 @@ public partial class MainWindow : Window
         await Model.NewInvitationAsync();
     }
 
+    private async void OnResetPeer(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null) return;
+        await Model.ResetPeerAsync();
+    }
+
     private void OnEndSession(object? sender, RoutedEventArgs e) => Model?.EndSession();
 
     private void OnExtend(object? sender, RoutedEventArgs e) => Model?.ExtendSession();
@@ -70,4 +76,5 @@ public partial class MainWindow : Window
         Model.NoteCopied();
     }
 
-}
+}
+

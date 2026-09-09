@@ -12,8 +12,8 @@ Dostep jest **osobno otwierany**, **czasowy** i **w pelni widoczny** w logu apli
 ## Jak to dziala
 
 1. Na maszynie sterowanej: **Uruchom link**. Aplikacja pokazuje kod zaproszenia (wazny 15 minut).
-2. Na maszynie klienta: `avh-link join <kod>`. Kod jest jednorazowy - potem sparowanie jest
-   pamietane i klient wraca bez niego.
+2. Na maszynie klienta: `avh-link join <kod>` albo wklejenie kodu w oknie **avh-hub**.
+   Kod jest jednorazowy - potem sparowanie jest pamietane i klient wraca bez niego.
 3. Na maszynie sterowanej: **Otworz dostep**. Sparowanie potwierdza tozsamosc maszyny, ale
    wpuszczenie jej jest osobna decyzja i wygasa razem z sesja (suwak 5 min - 8 h).
 4. **Kopiuj instrukcje** wrzuca do schowka gotowy blok tekstu z kodem i opisem polecen -
@@ -42,7 +42,10 @@ Czego **nie** ma i o czym trzeba pamietac:
 - sparowany klient ma pelne uprawnienia konta, na ktorym dziala aplikacja - nie ma piaskownicy
   ani listy dozwolonych polecen;
 - sparowanie jest trwale (trust on first use): po pierwszym `join` druga maszyna wraca bez kodu.
-  Odbiera sie je przez `avh-link forget` po stronie klienta albo **Nowy kod** przed sparowaniem;
+  Odbiera sie je przez `avh-link forget` (albo **Usun** w hubie) po stronie klienta,
+  a po stronie hosta przyciskiem **Odepnij maszyne**;
+- host trzyma dokladnie **jedna** sparowana maszyne klienta. Zeby wpuscic inna, trzeba najpierw
+  odpiac poprzednia - dotychczasowy klient przestaje sie wtedy laczyc;
 - to narzedzie awaryjne. Wlaczasz je, gdy potrzebujesz pomocy, i wylaczasz, gdy problem jest rozwiazany.
 
 ## Uruchomienie
@@ -67,6 +70,27 @@ dotnet publish src/AgentVirtualHand.Link -c Release -r win-x64   --self-containe
 dotnet publish src/AgentVirtualHand.Link -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
 ```
 
+## Dwa rodzaje klienta
+
+Do maszyny sterowanej mozna podlaczyc sie na dwa sposoby - obie strony rozmawiaja tym samym
+protokolem, wiec host nie widzi roznicy.
+
+**avh-hub** - aplikacja okienkowa z lista komputerow. Kazde polaczenie dostaje **wlasny port
+na 127.0.0.1 i wlasny token**, a "Kopiuj prompt" generuje instrukcje dla modelu tylko do tej
+jednej maszyny. To jest sedno: model dostaje adres i token jednego komputera i nie ma czym
+siegnac do pozostalych. Kazde polaczenie mozna wylaczyc bez ruszania reszty, a "Nowy token"
+uniewaznia wszystkie wczesniej skopiowane prompty tej maszyny.
+
+```bash
+avh-hub                                  # okno z lista komputerow
+avh-hub --pair <kod> --name labsvcn      # dodanie maszyny z wiersza polecen
+```
+
+Lista i tokeny leza w `%APPDATA%\AgentVirtualHand.Hub\connections.json`, a sparowanie kazdej
+maszyny w osobnym katalogu `links/<id>` - stad bierze sie izolacja polaczen.
+
+**avh-link** - klient tekstowy dla jednej maszyny, opisany nizej.
+
 ## Polecenia klienta
 
 | Polecenie | Opis |
@@ -81,7 +105,8 @@ dotnet publish src/AgentVirtualHand.Link -c Release -r linux-x64 --self-containe
 | `avh-link bg out <id> [--out-offset N] [--err-offset N]` | przyrostowy output, `running`, `exitCode` |
 | `avh-link bg stdin <id> "<tekst>"` \| `bg kill <id>` | stdin procesu / ubicie drzewa procesow |
 | `avh-link fs list \| read \| write \| download \| upload \| mkdir \| delete \| move` | operacje na plikach |
-| `avh-link help` | pelna instrukcja z maszyny zdalnej |
+| `avh-link api` | dokumentacja API maszyny zdalnej |
+| `avh-link --help` | instrukcja samego klienta |
 | `--store <katalog>` | inne miejsce na sparowanie (albo `AVH_LINK_STORE`) |
 
 Przyklad:
@@ -110,6 +135,12 @@ src/AgentVirtualHand/
 src/AgentVirtualHand.Link/
   Program.cs                 klient avh-link: polecenia -> koperty
   LinkDaemon.cs              link trzymany w tle + nazwany potok dla polecen
+
+src/AgentVirtualHand.Hub/
+  Services/LinkConnection.cs jedno polaczenie: link + wlasny port i token na 127.0.0.1
+  Services/ConnectionStore.cs lista maszyn, tokeny, katalogi sparowan
+  Services/PromptBuilder.cs  prompt dla modelu - do jednej maszyny
+  ViewModels/HubViewModel.cs lista polaczen, dodawanie, wlaczanie, usuwanie
   ViewModels/MainViewModel.cs stan aplikacji i logika GUI
   Views/MainWindow.axaml     interfejs
 ```

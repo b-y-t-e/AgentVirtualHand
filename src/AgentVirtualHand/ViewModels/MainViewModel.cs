@@ -268,6 +268,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Refresh();
     }
 
+    /// <summary>Host trzyma jedną sparowaną maszynę - żeby wpuścić inną, trzeba odpiąć poprzednią.</summary>
+    public async Task ResetPeerAsync()
+    {
+        if (!IsRunning) return;
+
+        try
+        {
+            _sessions.Revoke("odpięcie maszyny klienta");
+            await _link.ResetPeerAsync(InvitationWindow);
+            RebuildInvitationArtifacts();
+            Hint = "Poprzednia maszyna odpięta. Przekaż nowy kod tej, którą chcesz wpuścić.";
+        }
+        catch (Exception ex)
+        {
+            Hint = ex.Message;
+        }
+
+        Refresh();
+    }
+
     private void RebuildInvitationArtifacts()
     {
         var code = _link.InvitationCode;
@@ -371,7 +391,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         PLIKI: avh-link fs list <sciezka> | fs read <sciezka> [--max-bytes N] | fs download <zdalna> <lokalna>
              fs write <sciezka> --text "<tresc>" [--append] | fs upload <lokalna> <zdalna>
              fs mkdir <sciezka> | fs delete <sciezka> [--recursive] | fs move <z> <do>
-        RESZTA: avh-link system (os, shell, dyski, home) | avh-link session (pozostaly czas) | avh-link help
+        RESZTA: avh-link system (os, shell, dyski, home) | avh-link session (pozostaly czas) | avh-link --help
         NOTY: sciezki Windows pisz z ukosnikiem / albo podwojnym backslashem; dostep wygasa po {{DurationText}}
         -> 401 (popros wlasciciela o ponowne otwarcie dostepu); koniec pracy: avh-link session end.
         """;

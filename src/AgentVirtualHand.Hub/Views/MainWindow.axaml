@@ -1,0 +1,190 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AgentVirtualHand.Hub.ViewModels"
+        x:Class="AgentVirtualHand.Hub.Views.MainWindow"
+        x:DataType="vm:HubViewModel"
+        Title="AgentVirtualHand Hub"
+        Width="760" Height="660"
+        MinWidth="660" MinHeight="520"
+        Background="{DynamicResource Bg}"
+        FontFamily="Cascadia Mono, Consolas, monospace"
+        FontSize="13">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.k">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+    </Style>
+
+    <Style Selector="TextBlock.val">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Foreground" Value="{DynamicResource Body}" />
+    </Style>
+
+    <Style Selector="TextBlock.ui">
+      <Setter Property="FontFamily" Value="Segoe UI, Inter, sans-serif" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="Foreground" Value="{DynamicResource Soft}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="Border.sep">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource Line}" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="FontFamily" Value="Segoe UI, Inter, sans-serif" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource Field}" />
+      <Setter Property="Foreground" Value="#C7CEDA" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FieldLine}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1C222C" />
+      <Setter Property="BorderBrush" Value="#2C3444" />
+      <Setter Property="TextBlock.Foreground" Value="{DynamicResource Text}" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="#12161D" />
+      <Setter Property="TextBlock.Foreground" Value="#454D5C" />
+    </Style>
+
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource Accent}" />
+      <Setter Property="Foreground" Value="#08101F" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#6BA0FF" />
+      <Setter Property="TextBlock.Foreground" Value="#08101F" />
+    </Style>
+
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="{DynamicResource Bg}" />
+      <Setter Property="Foreground" Value="{DynamicResource Danger}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DangerLine}" />
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1B1216" />
+      <Setter Property="TextBlock.Foreground" Value="{DynamicResource Danger}" />
+    </Style>
+
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FieldLine}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Body}" />
+      <Setter Property="Padding" Value="0,0,0,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12.5" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+
+    <!-- Pasek stanu -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Height="42" Margin="22,0">
+      <TextBlock Grid.Column="0" Text="agentvirtualhand hub" FontSize="12.5" FontWeight="SemiBold"
+                 Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" Classes="k" FontSize="12" VerticalAlignment="Center"
+                 Text="{Binding Connections.Count, StringFormat='{}{0} połączeń'}" />
+    </Grid>
+    <Border Grid.Row="0" Classes="sep" VerticalAlignment="Bottom" />
+
+    <!-- Dodawanie maszyny -->
+    <Grid Grid.Row="1" Margin="22,18,22,16" ColumnDefinitions="150,14,*,14,Auto" RowDefinitions="Auto,8,Auto">
+      <StackPanel Grid.Row="0" Grid.Column="0" Spacing="5">
+        <TextBlock Classes="k" Text="nazwa" />
+        <TextBox Text="{Binding NewName}" Watermark="np. labsvcn" />
+      </StackPanel>
+      <StackPanel Grid.Row="0" Grid.Column="2" Spacing="5">
+        <TextBlock Classes="k" Text="kod zaproszenia z okna tamtej maszyny" />
+        <TextBox Text="{Binding NewCode}" Watermark="tc..." />
+      </StackPanel>
+      <Button Grid.Row="0" Grid.Column="4" Classes="primary" Content="Dodaj komputer"
+              VerticalAlignment="Bottom" Click="OnAdd" />
+    </Grid>
+    <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
+
+    <!-- Lista polaczen -->
+    <Grid Grid.Row="2" RowDefinitions="Auto,*" Margin="22,16,22,0">
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,10">
+        <TextBlock Grid.Column="0" Classes="k" Text="komputery" />
+      </Grid>
+
+      <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoConnections}"
+                 Text="Brak zapisanych komputerów. Na maszynie, którą chcesz sterować, kliknij Uruchom link i wklej tutaj jej kod zaproszenia. Każdy komputer dostaje osobny port i osobny token, więc prompt wygenerowany dla jednego nie sięga do pozostałych." />
+
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasConnections}">
+        <ItemsControl ItemsSource="{Binding Connections}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ConnectionRow">
+              <Border Margin="0,0,0,10" Padding="14,12" CornerRadius="6"
+                      Background="#12161D" BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                <Grid RowDefinitions="Auto,10,Auto">
+                  <Grid Grid.Row="0" ColumnDefinitions="Auto,10,Auto,*,Auto">
+                    <Ellipse Grid.Column="0" Width="6" Height="6" Fill="{Binding StatusAccent}"
+                             VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Text="{Binding StatusText}" FontSize="12"
+                               Foreground="{Binding StatusAccent}" VerticalAlignment="Center" />
+                  </Grid>
+
+                  <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                    <SelectableTextBlock Grid.Column="0" Text="{Binding AddressText}" FontSize="12"
+                                         Foreground="{DynamicResource Link}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                      <Button Classes="primary" Content="Kopiuj prompt" Click="OnCopyPrompt"
+                              IsEnabled="{Binding IsOpen}" />
+                      <Button Content="{Binding ToggleText}" Click="OnToggle" IsEnabled="{Binding NotBusy}" />
+                      <Button Content="Nowy token" Click="OnRotateToken" IsEnabled="{Binding IsOpen}" />
+                      <Button Classes="danger" Content="Usuń" Click="OnRemove" />
+                    </StackPanel>
+                  </Grid>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Log -->
+    <Grid Grid.Row="3" RowDefinitions="Auto,Auto" Margin="22,14,22,0" MaxHeight="150">
+      <TextBlock Grid.Row="0" Classes="k" Text="log" Margin="0,0,0,8" />
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Logs}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LogEntry">
+              <Grid ColumnDefinitions="Auto,12,42,12,*" Margin="0,0,0,5">
+                <TextBlock Grid.Column="0" Text="{Binding Time}" FontSize="12"
+                           Foreground="{DynamicResource Muted}" />
+                <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="12"
+                           HorizontalAlignment="Right" Foreground="{Binding Accent}" />
+                <TextBlock Grid.Column="4" Text="{Binding Message}" FontSize="12"
+                           TextWrapping="Wrap" Foreground="{DynamicResource Body}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Podpowiedz -->
+    <Border Grid.Row="4" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
+            Padding="22,12" Margin="0,14,0,0">
+      <TextBlock Classes="ui" FontSize="12.5" Text="{Binding Hint}" />
+    </Border>
+  </Grid>
+</Window>

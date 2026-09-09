@@ -18,7 +18,7 @@ public static class Program
     {
         try { Console.OutputEncoding = Encoding.UTF8; } catch (IOException) { /* przekierowane wyjście */ }
 
-        if (args.Length == 0 || args[0] is "-h" or "--help")
+        if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
         {
             PrintUsage();
             return args.Length == 0 ? 2 : 0;
@@ -100,11 +100,11 @@ public static class Program
 
         switch (verb)
         {
-            case "help":
-                return (Get("/api/help"), null);
-
             case "system":
                 return (Get("/api/system"), null);
+
+            case "api":
+                return (Get("/api/help"), null);
 
             case "session":
                 return Arg(rest, 0) == "end"
@@ -346,7 +346,7 @@ public static class Program
           avh-link system                     system, powłoka, dyski, katalog domowy
           avh-link session                    pozostały czas dostępu
           avh-link session end                koniec pracy, zamyka dostęp
-          avh-link help                       pełna instrukcja API z drugiej maszyny
+          avh-link api                        dokumentacja API maszyny zdalnej
 
         DODATKOWO
           --store <katalog>                   inne miejsce na sparowanie (albo AVH_LINK_STORE)

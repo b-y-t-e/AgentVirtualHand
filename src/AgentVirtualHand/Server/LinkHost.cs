@@ -58,6 +58,12 @@ public sealed class LinkHost : IAsyncDisposable
         };
 
         _link = link;
+
+        // Stan sparowania przezywa restart razem z kodem zaproszenia - a ten zdazyl juz wygasnac.
+        // Bez odswiezenia okno pokazywaloby martwy kod, ktorego nikt nie zdola uzyc.
+        if (link.InvitationExpiresAt is null || link.InvitationExpiresAt <= DateTimeOffset.Now)
+            await link.RenewInvitationAsync().ConfigureAwait(false);
+
         Audit?.Invoke("link", $"Link gotowy, kod zaproszenia ważny do {link.InvitationExpiresAt?.LocalDateTime:HH:mm:ss}");
         Changed?.Invoke();
     }
@@ -71,6 +77,23 @@ public sealed class LinkHost : IAsyncDisposable
         Audit?.Invoke("link", "Wygenerowano nowy kod zaproszenia");
         Changed?.Invoke();
         return code.Value;
+    }
+
+    /// <summary>Czy jakaś maszyna jest już sparowana z tym hostem.</summary>
+    public bool HasPeer => _link?.Peer.ToString() is { Length: > 0 };
+
+    /// <summary>
+    /// Odpina dotychczasowego klienta i buduje nową tożsamość węzła.
+    /// Host trzyma dokładnie jedną sparowaną maszynę, więc wpuszczenie innej wymaga
+    /// zapomnienia poprzedniej - dotychczasowy klient przestaje się łączyć.
+    /// </summary>
+    public async Task ResetPeerAsync(TimeSpan pairingWindow)
+    {
+        await StopAsync().ConfigureAwait(false);
+        await TailcatLink.ForgetAsync(AppName).ConfigureAwait(false);
+
+        Audit?.Invoke("link", "Odpięto poprzednią maszynę - potrzebne nowe sparowanie");
+        await StartAsync(pairingWindow).ConfigureAwait(false);
     }
 
     public async Task StopAsync()

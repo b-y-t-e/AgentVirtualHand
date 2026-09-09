@@ -164,11 +164,12 @@
       </StackPanel>
       <TextBlock Classes="ui" MaxWidth="520" HorizontalAlignment="Left"
                  Text="Na drugiej maszynie: avh-link join &lt;kod&gt;. Kod jest jednorazowy - potem klient wraca bez niego. Dostęp otwierasz osobno i wygasa sam." />
-      <Grid ColumnDefinitions="Auto,8,Auto,8,*">
+      <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,*">
         <Button Grid.Column="0" Classes="primary" Content="Otwórz dostęp" Width="140"
                 IsEnabled="{Binding CanPair}" Click="OnOpenAccess" />
         <Button Grid.Column="2" Content="Nowy kod" Click="OnNewInvitation" />
-        <Button Grid.Column="4" Content="Zatrzymaj link" Click="OnToggleServer"
+        <Button Grid.Column="4" Content="Odepnij maszynę" Click="OnResetPeer" />
+        <Button Grid.Column="6" Content="Zatrzymaj link" Click="OnToggleServer"
                 HorizontalAlignment="Left" />
       </Grid>
     </StackPanel>

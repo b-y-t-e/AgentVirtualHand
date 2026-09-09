@@ -2,5 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/AgentVirtualHand/AgentVirtualHand.csproj" />
     <Project Path="src/AgentVirtualHand.Link/AgentVirtualHand.Link.csproj" />
+    <Project Path="src/AgentVirtualHand.Hub/AgentVirtualHand.Hub.csproj" />
   </Folder>
 </Solution>

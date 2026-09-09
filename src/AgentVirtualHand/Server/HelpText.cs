@@ -1,18 +1,21 @@
 namespace AgentVirtualHand.Server;
 
-/// <summary>Instrukcja zwracana przez "avh-link help" - to samo trafia do schowka.</summary>
+/// <summary>
+/// Dokumentacja API HTTP zwracana pod /api/help. Czyta ją model pracujacy przez aplikacje Hub;
+/// klient avh-link opakowuje te same endpointy we wlasne polecenia (avh-link --help).
+/// </summary>
 public static class HelpText
 {
     public static string Markdown() => """
         # AgentVirtualHand - zdalne sterowanie maszyną przez Tailcat.Link
 
-        Połączenie idzie linkiem, nie po adresie IP: nie ma hosta, portu ani tokenu do przekazywania.
-        Kod zaproszenia podaje się raz (`avh-link join <kod>`), potem sparowanie jest pamiętane.
+        Ruch idzie linkiem Tailcata, ale API jest zwykłym HTTP wystawionym lokalnie przez
+        aplikację, przez którą się łączysz. Adres i token dostajesz w promptcie - prowadzą
+        wyłącznie do tej jednej maszyny.
 
         Dostęp wygasa o godzinie ustawionej przez właściciela maszyny. Po wygaśnięciu każde
-        polecenie kończy się `HTTP 401` i trzeba poprosić o ponowne otwarcie dostępu w oknie aplikacji.
-
-        Pierwsze polecenie zestawia link w tle (kilkanaście sekund), kolejne idą już od razu.
+        żądanie kończy się `401` i trzeba poprosić o ponowne otwarcie dostępu w jego oknie.
+        `502` oznacza chwilowo zerwany link, nie brak uprawnień.
 
         ## Sesja
         - `GET  /api/session`      - ile czasu zostało, kto jest połączony
@@ -46,7 +49,7 @@ public static class HelpText
 
         ## Uwagi
         - ścieżki Windows pisz z ukośnikiem `/` albo podwójnym backslashem;
-        - link trzyma się w tle; `avh-link down` go zamyka, `avh-link up` podnosi z powrotem;
+        - długie operacje puszczaj przez `/api/exec/start`, nie przez zwykły `exec`;
         - operacje destrukcyjne (kasowanie, nadpisywanie, instalacje) potwierdź z właścicielem maszyny.
 
         """;
