@@ -116,7 +116,7 @@ public sealed class HubViewModel : INotifyPropertyChanged
         };
         _timer.Start();
 
-        Log("app", $"AgentVirtualHand Hub - {Connections.Count} zapisanych połączeń");
+        Log("app", $"AVH Hub - {Connections.Count} zapisanych połączeń");
     }
 
     /// <summary>Blokada okna hasłem - hub trzyma tokeny do cudzych maszyn, więc nie może stać otworem.</summary>

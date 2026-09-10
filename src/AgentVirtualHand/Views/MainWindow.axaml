@@ -3,7 +3,7 @@
         xmlns:vm="using:AgentVirtualHand.ViewModels"
         x:Class="AgentVirtualHand.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="AgentVirtualHand"
+        Title="AVH"
         Width="760" Height="680"
         MinWidth="660" MinHeight="540"
         Background="{DynamicResource Bg}"
@@ -15,10 +15,14 @@
 
       <!-- Pasek stanu: czyja to maszyna i kto na niej teraz pracuje -->
       <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto" Height="44" Margin="24,0">
-        <TextBlock Grid.Column="0" Text="agentvirtualhand" FontSize="12.5" FontWeight="SemiBold"
+        <TextBlock Grid.Column="0" Text="avh" FontSize="12.5" FontWeight="SemiBold"
                    Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Classes="k" FontSize="12" Margin="12,0,0,0"
                    Text="{Binding MachineName}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding Lock.LockCountdownText}"
+                   IsVisible="{Binding Lock.ShowLockCountdown}" FontSize="12"
+                   Foreground="{DynamicResource Warn}" HorizontalAlignment="Right"
+                   Margin="0,0,16,0" VerticalAlignment="Center" />
         <Ellipse Grid.Column="3" Width="6" Height="6" Fill="{Binding StatusAccent}"
                  VerticalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="{Binding StatusText}" FontSize="12" Margin="8,0,0,0"
@@ -162,7 +166,7 @@
       <Grid RowDefinitions="*,Auto,*" Margin="24,0">
         <StackPanel Grid.Row="1" Spacing="24" Width="320" HorizontalAlignment="Center">
           <StackPanel Spacing="6">
-            <TextBlock Text="agentvirtualhand" FontSize="12.5" FontWeight="SemiBold"
+            <TextBlock Text="avh" FontSize="12.5" FontWeight="SemiBold"
                        Foreground="{DynamicResource Text}" />
             <TextBlock Classes="k" FontSize="12" Text="{Binding MachineName}" />
           </StackPanel>

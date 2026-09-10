@@ -15,6 +15,9 @@ public sealed class LockViewModel : INotifyPropertyChanged
     public static TimeSpan IdleTimeout { get; } = TimeSpan.FromSeconds(30);
     public static TimeSpan PenaltyAfterFailure { get; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>Na ile sekund przed blokadą pokazać ciche ostrzeżenie o zbliżającym się zamknięciu.</summary>
+    public static int LockWarningSeconds { get; } = 10;
+
     private readonly PasswordGate _gate;
     private readonly TimeProvider _clock;
     private readonly DispatcherTimer? _timer;
@@ -27,6 +30,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
     private string _confirmation = "";
     private string _message = "";
     private int _penaltySeconds;
+    private int _secondsUntilLock;
 
     /// <param name="clock">Wstrzykiwany zegar - dzięki niemu odliczanie da się przetestować bez czekania.</param>
     /// <param name="runTimer">Fałsz w testach: wtedy <see cref="Tick"/> woła się ręcznie.</param>
@@ -99,6 +103,22 @@ public sealed class LockViewModel : INotifyPropertyChanged
     public bool HasPenalty => PenaltySeconds > 0;
     public bool CanSubmit => PenaltySeconds == 0;
 
+    /// <summary>Sekundy do automatycznej blokady - liczone tylko w ostatnich chwilach bezczynności.</summary>
+    public int SecondsUntilLock
+    {
+        get => _secondsUntilLock;
+        private set
+        {
+            if (!Set(ref _secondsUntilLock, value)) return;
+            OnPropertyChanged(nameof(ShowLockCountdown));
+            OnPropertyChanged(nameof(LockCountdownText));
+        }
+    }
+
+    public bool ShowLockCountdown => !IsLocked && SecondsUntilLock is > 0 and <= 60;
+
+    public string LockCountdownText => $"blokada za {SecondsUntilLock} s";
+
     /// <summary>Ruch myszą albo klawisz - liczy się jako obecność przy komputerze.</summary>
     public void NoteActivity() => _lastActivity = _clock.GetUtcNow();
 
@@ -110,6 +130,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
         Confirmation = "";
         Message = "Okno zablokowane po 30 sekundach bezczynności. Podaj hasło.";
         IsLocked = true;
+        SecondsUntilLock = 0;
     }
 
     /// <summary>Wspólny przycisk: przy pierwszym uruchomieniu ustawia hasło, później odblokowuje.</summary>
@@ -129,6 +150,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
             Message = "";
             NoteActivity();
             IsLocked = false;
+            SecondsUntilLock = 0;
             return;
         }
 
@@ -186,7 +208,21 @@ public sealed class LockViewModel : INotifyPropertyChanged
             }
         }
 
-        if (!IsLocked && _clock.GetUtcNow() - _lastActivity >= IdleTimeout) Lock();
+        if (IsLocked)
+        {
+            SecondsUntilLock = 0;
+            return;
+        }
+
+        var idle = _clock.GetUtcNow() - _lastActivity;
+        if (idle >= IdleTimeout)
+        {
+            Lock();
+            return;
+        }
+
+        var untilLock = (int)Math.Ceiling((IdleTimeout - idle).TotalSeconds);
+        SecondsUntilLock = untilLock <= LockWarningSeconds ? untilLock : 0;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

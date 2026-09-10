@@ -7,7 +7,7 @@ namespace AgentVirtualHand.Server;
 public static class HelpText
 {
     public static string Markdown() => """
-        # AgentVirtualHand - zdalne sterowanie maszyną przez Tailcat.Link
+        # AVH - zdalne sterowanie maszyną przez Tailcat.Link
 
         Ruch idzie linkiem Tailcata, ale API jest zwykłym HTTP wystawionym lokalnie przez
         aplikację, przez którą się łączysz. Adres i token dostajesz w promptcie - prowadzą

@@ -56,7 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _timer.Start();
 
         LoadSettings();
-        Log("app", $"AgentVirtualHand {AppInfo.Version} na {Environment.MachineName}");
+        Log("app", $"AVH {AppInfo.Version} na {Environment.MachineName}");
         Refresh();
     }
 
@@ -66,8 +66,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<MachineRow> Machines { get; } = [];
 
     /// <summary>Blokada okna hasłem - pierwsze uruchomienie wymusza jego ustawienie.</summary>
-    public LockViewModel Lock { get; } = new(Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AgentVirtualHand"));
+    public LockViewModel Lock { get; } = new(AppPaths.Root);
 
     /// <summary>Odtwarza ustawienia z poprzedniego uruchomienia. Wywolywane raz, przed pierwszym odswiezeniem adresow.</summary>
     private void LoadSettings()

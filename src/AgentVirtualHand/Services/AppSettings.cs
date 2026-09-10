@@ -3,15 +3,13 @@ using System.Text.Json;
 namespace AgentVirtualHand.Services;
 
 /// <summary>
-/// Ustawienia zapamiętywane między uruchomieniami: %APPDATA%\AgentVirtualHand\settings.json.
+/// Ustawienia zapamiętywane między uruchomieniami: %APPDATA%vh\settings.json.
 /// Czytane i pisane ręcznie (JsonDocument / Utf8JsonWriter), żeby nie zależeć od refleksji -
 /// aplikacja jest publikowana jako pojedynczy plik.
 /// </summary>
 public sealed record AppSettings(int? DurationMinutes)
 {
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "AgentVirtualHand", "settings.json");
+    private static string FilePath => Path.Combine(AppPaths.Root, "settings.json");
 
     public static AppSettings Load()
     {

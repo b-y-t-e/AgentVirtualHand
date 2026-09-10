@@ -166,7 +166,7 @@ public sealed class LinkHost : IAsyncDisposable
         var session = _sessions.ForPeer(peer.Key.ToString());
         if (session is null)
             return LinkCodec.Encode(LinkResponse.Error(401,
-                "Dostęp zamknięty - właściciel maszyny musi go otworzyć w oknie AgentVirtualHand."));
+                "Dostęp zamknięty - właściciel maszyny musi go otworzyć w oknie AVH."));
 
         try
         {

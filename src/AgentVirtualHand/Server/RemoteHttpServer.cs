@@ -112,7 +112,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
     {
         app.MapGet("/api/status", () => Results.Json(new
         {
-            app = "AgentVirtualHand",
+            app = "AVH",
             version = AppInfo.Version,
             host = Environment.MachineName,
             os = AppInfo.OsDescription,

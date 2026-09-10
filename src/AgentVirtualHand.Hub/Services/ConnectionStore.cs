@@ -14,8 +14,9 @@ public sealed record ConnectionEntry(string Id, string Name, int Port, bool Enab
 
 public static class HubPaths
 {
-    public static string Root { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AgentVirtualHand.Hub");
+    // Nazwa na dysku celowo nieczytelna, z jednorazowa migracja z poprzedniej wersji.
+    public static string Root { get; } =
+        AgentVirtualHand.Services.AppPaths.Resolve("avh-hub", "AgentVirtualHand.Hub");
 
     public static string ConnectionsFile => Path.Combine(Root, "connections.json");
 }

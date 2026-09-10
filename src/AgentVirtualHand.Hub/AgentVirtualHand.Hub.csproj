@@ -34,6 +34,7 @@
     <!-- Blokada okna jest wspolna dla obu aplikacji okienkowych. -->
     <Compile Include="..\AgentVirtualHand\Services\PasswordGate.cs" Link="PasswordGate.cs" />
     <Compile Include="..\AgentVirtualHand\ViewModels\LockViewModel.cs" Link="LockViewModel.cs" />
+    <Compile Include="..\AgentVirtualHand\Services\AppPaths.cs" Link="AppPaths.cs" />
     <AvaloniaResource Include="..\AgentVirtualHand\Styles\Theme.axaml" Link="Styles\Theme.axaml" />
   </ItemGroup>
 

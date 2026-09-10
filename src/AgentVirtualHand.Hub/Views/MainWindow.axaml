@@ -3,7 +3,7 @@
         xmlns:vm="using:AgentVirtualHand.Hub.ViewModels"
         x:Class="AgentVirtualHand.Hub.Views.MainWindow"
         x:DataType="vm:HubViewModel"
-        Title="AgentVirtualHand Hub"
+        Title="AVH Hub"
         Width="760" Height="660"
         MinWidth="660" MinHeight="520"
         Background="{DynamicResource Bg}"
@@ -14,8 +14,12 @@
     <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
 
       <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Height="44" Margin="24,0">
-        <TextBlock Grid.Column="0" Text="agentvirtualhand hub" FontSize="12.5" FontWeight="SemiBold"
+        <TextBlock Grid.Column="0" Text="avh hub" FontSize="12.5" FontWeight="SemiBold"
                    Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding Lock.LockCountdownText}"
+                   IsVisible="{Binding Lock.ShowLockCountdown}" FontSize="12"
+                   Foreground="{DynamicResource Warn}" HorizontalAlignment="Right"
+                   Margin="0,0,16,0" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Classes="k" FontSize="12" VerticalAlignment="Center"
                    Text="{Binding ConnectionsSummary}" />
       </Grid>
@@ -120,7 +124,7 @@
     <Border Classes="lock" IsVisible="{Binding Lock.IsLocked}">
       <Grid RowDefinitions="*,Auto,*" Margin="24,0">
         <StackPanel Grid.Row="1" Spacing="24" Width="320" HorizontalAlignment="Center">
-          <TextBlock Text="agentvirtualhand hub" FontSize="12.5" FontWeight="SemiBold"
+          <TextBlock Text="avh hub" FontSize="12.5" FontWeight="SemiBold"
                      Foreground="{DynamicResource Text}" />
 
           <TextBlock Classes="ui" Text="{Binding Lock.Message}" MaxWidth="320" />
