@@ -105,6 +105,12 @@ public partial class MainWindow : Window
         await Model.DeleteMachineAsync(machine);
     }
 
+    private void OnPickDuration(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null || (sender as Control)?.Tag is not { } tag) return;
+        if (int.TryParse(tag.ToString(), out var minutes)) Model.DurationMinutes = minutes;
+    }
+
     private async void OnInvite(object? sender, RoutedEventArgs e)
     {
         if (Model is null) return;

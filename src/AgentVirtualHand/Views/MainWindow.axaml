@@ -119,15 +119,16 @@
         </ScrollViewer>
       </Grid>
 
-      <!-- The only setting: how long the code lets a machine in -->
-      <StackPanel Grid.Row="4" Margin="24,16,24,10" Spacing="8">
-        <Grid ColumnDefinitions="Auto,*,Auto">
-          <TextBlock Grid.Column="0" Classes="k" Text="access for" />
-          <TextBlock Grid.Column="2" Classes="val" Text="{Binding DurationText}" />
-        </Grid>
-        <Slider Minimum="5" Maximum="480" TickFrequency="5" IsSnapToTickEnabled="True"
-                Value="{Binding DurationMinutes}" />
-      </StackPanel>
+      <!-- The only setting: how long the code lets a machine in - round presets, one tap -->
+      <Grid Grid.Row="4" Margin="24,16,24,10" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Classes="k" Text="access for" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+          <Button Content="15 min" Tag="15"  Classes.primary="{Binding Dur15}"  Click="OnPickDuration" />
+          <Button Content="1 h"    Tag="60"  Classes.primary="{Binding Dur60}"  Click="OnPickDuration" />
+          <Button Content="4 h"    Tag="240" Classes.primary="{Binding Dur240}" Click="OnPickDuration" />
+          <Button Content="8 h"    Tag="480" Classes.primary="{Binding Dur480}" Click="OnPickDuration" />
+        </StackPanel>
+      </Grid>
 
       <!-- Log -->
       <Grid Grid.Row="5" RowDefinitions="Auto,*" Margin="24,8,24,0" Height="160">

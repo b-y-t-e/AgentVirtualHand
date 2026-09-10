@@ -76,7 +76,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (saved.DurationMinutes is { } minutes)
         {
-            _durationMinutes = Math.Clamp(minutes, 5, 480);
+            // Przyciagnij do najblizszego presetu - stary suwak mogl zapisac dowolna wartosc.
+            _durationMinutes = DurationPresets.MinBy(p => Math.Abs(p - minutes));
             _sessions.SessionDuration = TimeSpan.FromMinutes(_durationMinutes);
         }
 
@@ -92,6 +93,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string MachineName => Environment.MachineName;
 
+    /// <summary>Gotowe dlugosci okna dostepu - okragle wartosci zamiast dowolnego suwaka.</summary>
+    public static IReadOnlyList<int> DurationPresets { get; } = [15, 60, 240, 480];
+
     public int DurationMinutes
     {
         get => _durationMinutes;
@@ -100,12 +104,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (!Set(ref _durationMinutes, Math.Clamp(value, 5, 480))) return;
             _sessions.SessionDuration = TimeSpan.FromMinutes(_durationMinutes);
             OnPropertyChanged(nameof(DurationText));
+            OnPropertyChanged(nameof(Dur15));
+            OnPropertyChanged(nameof(Dur60));
+            OnPropertyChanged(nameof(Dur240));
+            OnPropertyChanged(nameof(Dur480));
             SaveSettings();
         }
     }
 
+    // Ktory preset jest teraz wybrany - do podswietlenia przycisku.
+    public bool Dur15 => DurationMinutes == 15;
+    public bool Dur60 => DurationMinutes == 60;
+    public bool Dur240 => DurationMinutes == 240;
+    public bool Dur480 => DurationMinutes == 480;
+
     public string DurationText => DurationMinutes >= 60
-        ? $"{DurationMinutes / 60} h {DurationMinutes % 60:00} min"
+        ? (DurationMinutes % 60 == 0 ? $"{DurationMinutes / 60} h" : $"{DurationMinutes / 60} h {DurationMinutes % 60:00} min")
         : $"{DurationMinutes} min";
 
     public bool IsRunning => _server.IsRunning;
@@ -119,7 +133,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool ShowInvitePrompt => IsRunning && InvitationCode.Length == 0;
 
     public string InvitationHint => _link.InvitationExpiresAt is { } expires
-        ? $"wazny do {expires.LocalDateTime:HH:mm}, wpuszcza jedna maszyne na {DurationText}"
+        ? $"valid until {expires.LocalDateTime:HH:mm}, lets one machine in for {DurationText}"
         : "";
 
     public bool HasMachines => Machines.Count > 0;
@@ -135,10 +149,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             return (working, waiting) switch
             {
-                (0, 0) => "nikt nie pracuje",
-                (0, _) => $"{waiting} czeka na wpuszczenie",
+                (0, 0) => "nobody working",
+                (0, _) => $"{waiting} waiting to be let in",
                 (_, 0) => working == 1 ? "1 machine working" : $"{working} machines working",
-                _ => $"{working} pracuje, {waiting} czeka",
+                _ => $"{working} working, {waiting} waiting",
             };
         }
     }
@@ -307,9 +321,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var (statusText, statusAccent) = (IsRunning, Machines.Count) switch
         {
-            (false, _) => ("Zatrzymany", "#8B95A7"),
-            (true, 0) => ("Nikt nie pracuje", "#4C8DFF"),
-            (true, 1) => ("1 maszyna pracuje", "#63D19B"),
+            (false, _) => ("Stopped", "#8B95A7"),
+            (true, 0) => ("Nobody working", "#4C8DFF"),
+            (true, 1) => ("1 machine working", "#63D19B"),
             (true, var n) => ($"{n} machines working", "#63D19B"),
         };
 
@@ -374,7 +388,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var sb = new StringBuilder();
             sb.AppendLine(new string('=', 70));
             sb.AppendLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {what}");
-            sb.AppendLine($"maszyna={Environment.MachineName} uzytkownik={Environment.UserName} os={Environment.OSVersion}");
+            sb.AppendLine($"machine={Environment.MachineName} user={Environment.UserName} os={Environment.OSVersion}");
             sb.AppendLine($"proces={Environment.ProcessPath} 64bit={Environment.Is64BitProcess}");
             sb.AppendLine(new string('-', 70));
 
