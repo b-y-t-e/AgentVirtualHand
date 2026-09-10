@@ -36,13 +36,13 @@ public sealed class ConnectionRow : INotifyPropertyChanged
 
     public string Name => _connection.Entry.Name;
 
-    public string AddressText => _connection.IsOpen ? _connection.BaseUrl : "wyłączone";
+    public string AddressText => _connection.IsOpen ? _connection.BaseUrl : "off";
 
     public string StatusText => (_connection.IsOpen, _connection.IsConnected) switch
     {
-        (false, _) => "wyłączone",
-        (true, false) => "łączenie",
-        (true, true) => "połączone",
+        (false, _) => "off",
+        (true, false) => "connecting",
+        (true, true) => "connected",
     };
 
     public IBrush StatusAccent => Brush.Parse((_connection.IsOpen, _connection.IsConnected) switch
@@ -54,7 +54,7 @@ public sealed class ConnectionRow : INotifyPropertyChanged
 
     public bool IsOpen => _connection.IsOpen;
     public bool IsConnected => _connection.IsConnected;
-    public string ToggleText => _connection.IsOpen ? "Wyłącz" : "Włącz";
+    public string ToggleText => _connection.IsOpen ? "Turn off" : "Turn on";
 
     public bool Busy
     {
@@ -102,7 +102,7 @@ public sealed class HubViewModel : INotifyPropertyChanged
 
     private string _newCode = "";
     private string _newName = "";
-    private string _hint = "Wklej kod zaproszenia z maszyny, którą chcesz sterować.";
+    private string _hint = "Paste the invite code from the machine you want to control.";
 
     public HubViewModel()
     {
@@ -116,7 +116,7 @@ public sealed class HubViewModel : INotifyPropertyChanged
         };
         _timer.Start();
 
-        Log("app", $"AVH Hub - {Connections.Count} zapisanych połączeń");
+        Log("app", $"AVH Hub - {Connections.Count} saved connections");
     }
 
     /// <summary>Blokada okna hasłem - hub trzyma tokeny do cudzych maszyn, więc nie może stać otworem.</summary>
@@ -127,8 +127,8 @@ public sealed class HubViewModel : INotifyPropertyChanged
 
     /// <summary>Krótkie podsumowanie w pasku: ile maszyn faktycznie odpowiada.</summary>
     public string ConnectionsSummary => Connections.Count == 0
-        ? "brak komputerów"
-        : $"{Connections.Count(row => row.IsConnected)} z {Connections.Count} połączonych";
+        ? "no computers"
+        : $"{Connections.Count(row => row.IsConnected)} of {Connections.Count} connected";
 
     public bool HasConnections => Connections.Count > 0;
     public bool HasNoConnections => Connections.Count == 0;
@@ -162,7 +162,7 @@ public sealed class HubViewModel : INotifyPropertyChanged
         }
 
         var name = NewName.Trim();
-        if (name.Length == 0) name = $"maszyna {Connections.Count + 1}";
+        if (name.Length == 0) name = $"machine {Connections.Count + 1}";
 
         var entry = new ConnectionEntry(Guid.NewGuid().ToString("N")[..12], name, 0, Enabled: true, Token: "");
         var row = Add(entry, autoStart: false);
@@ -173,13 +173,13 @@ public sealed class HubViewModel : INotifyPropertyChanged
             await row.Connection.StartAsync(code);
             NewCode = "";
             NewName = "";
-            Hint = $"Sparowano z \"{name}\". Skopiuj prompt, żeby dać modelowi dostęp do tej jednej maszyny.";
+            Hint = $"Paired with \"{name}\". Copy the prompt to give the model access to this one machine.";
         }
         catch (Exception ex)
         {
             Connections.Remove(row);
             ConnectionStore.Forget(entry);
-            Hint = $"Nie udało się sparować: {ex.Message}";
+            Hint = $"Pairing failed: {ex.Message}";
             Log("deny", $"{name}: {ex.Message}");
         }
 
@@ -201,8 +201,8 @@ public sealed class HubViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasNoConnections));
         OnPropertyChanged(nameof(ConnectionsSummary));
 
-        Log("link", $"{row.Name}: usunięte razem ze sparowaniem");
-        Hint = $"Usunięto \"{row.Name}\". Ponowne dodanie wymaga nowego kodu zaproszenia.";
+        Log("link", $"{row.Name}: removed along with its pairing");
+        Hint = $"Removed \"{row.Name}\". Adding it again needs a new invite code.";
         Save();
     }
 
@@ -210,14 +210,14 @@ public sealed class HubViewModel : INotifyPropertyChanged
     {
         row.Connection.RotateToken();
         Save();
-        Hint = $"Nowy token dla \"{row.Name}\" - wcześniejsze prompty już nie działają.";
+        Hint = $"New token for \"{row.Name}\" - earlier prompts no longer work.";
     }
 
     public string PromptFor(ConnectionRow row) => PromptBuilder.ForConnection(row.Connection);
 
     public void NotePromptCopied(ConnectionRow row)
     {
-        Hint = $"Prompt do \"{row.Name}\" w schowku - daje dostęp tylko do tej maszyny.";
+        Hint = $"Prompt for \"{row.Name}\" copied - it grants access to this machine only.";
         Log("pair", $"{row.Name}: skopiowano prompt");
     }
 

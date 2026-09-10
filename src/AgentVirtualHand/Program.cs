@@ -62,7 +62,7 @@ internal static class Program
             {
                 var next = await link.InviteAsync();
                 Console.WriteLine();
-                Console.WriteLine($"  Kod dla kolejnej maszyny:  {next.Code.Value}");
+                Console.WriteLine($"  Code for the next machine:  {next.Code.Value}");
                 Console.WriteLine();
             });
         };
@@ -70,19 +70,19 @@ internal static class Program
         var first = await link.InviteAsync();
 
         Console.WriteLine();
-        Console.WriteLine($"  Kod zaproszenia:  {first.Code.Value}");
-        Console.WriteLine("  Druga maszyna:    avh-link join <kod>   (kod jednorazowy, ważny 15 minut)");
-        Console.WriteLine($"  Czas dostępu:     {minutes} min");
-        Console.WriteLine("  Instrukcja:       avh-link help");
+        Console.WriteLine($"  Invite code:  {first.Code.Value}");
+        Console.WriteLine("  Other machine:   avh-link join <code>   (single-use, valid 15 minutes)");
+        Console.WriteLine($"  Access time:     {minutes} min");
+        Console.WriteLine("  Reference:       avh-link help");
         Console.WriteLine();
-        Console.WriteLine("  Ctrl+C kończy sesję i odcina dostęp.");
+        Console.WriteLine("  Ctrl+C ends the session and cuts off access.");
         Console.WriteLine();
 
         var stop = new TaskCompletionSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(); };
         await stop.Task;
 
-        sessions.RevokeAll("zamknięcie trybu headless");
+        sessions.RevokeAll("headless mode shutdown");
         await link.StopAsync();
         await server.StopAsync();
         return 0;

@@ -31,7 +31,7 @@ public static class Program
                 "--daemon" => await DaemonAsync(args),
                 "up" => await UpAsync(args),
                 "down" => await DownAsync(args),
-                "join" => await JoinAsync(Arg(args, 1) ?? throw new ArgumentException("Podaj kod zaproszenia: avh-link join <kod>"), args),
+                "join" => await JoinAsync(Arg(args, 1) ?? throw new ArgumentException("Provide an invite code: avh-link join <code>"), args),
                 "forget" => await ForgetAsync(args),
                 _ => await CallAsync(args),
             };
@@ -50,14 +50,14 @@ public static class Program
         await using var link = await TailcatLink.JoinAsync(AppName, code, request, Options(args));
         await link.WaitUntilConnectedAsync(Deadline(TimeSpan.FromSeconds(60)));
 
-        Console.WriteLine("Sparowano. Kod nie będzie już potrzebny - spróbuj: avh-link system");
+        Console.WriteLine("Paired. The code is no longer needed - try: avh-link system");
         return 0;
     }
 
     private static async Task<int> ForgetAsync(string[] args)
     {
         await TailcatLink.ForgetAsync(AppName, Options(args));
-        Console.WriteLine("Sparowanie usunięte. Kolejne połączenie wymaga nowego kodu zaproszenia.");
+        Console.WriteLine("Pairing removed. The next connection needs a new invite code.");
         return 0;
     }
 
@@ -81,15 +81,15 @@ public static class Program
     {
         var response = await LinkDaemon.SendAsync(new LinkRequest { Path = "/api/session" }, Store(args), TimeSpan.FromMinutes(2));
         Console.WriteLine(response.IsSuccess
-            ? "Link gotowy. Kolejne polecenia idą już bez zestawiania połączenia."
-            : $"Link gotowy, ale dostęp zamknięty: HTTP {response.Status} {response.Body}");
+            ? "Link ready. Further commands run without setting up the connection again."
+            : $"Link ready, but access is closed: HTTP {response.Status} {response.Body}");
         return response.IsSuccess ? 0 : 1;
     }
 
     private static async Task<int> DownAsync(string[] args)
     {
         var stopped = await LinkDaemon.StopAsync(Store(args));
-        Console.WriteLine(stopped ? "Link w tle zatrzymany." : "Link w tle nie działał.");
+        Console.WriteLine(stopped ? "Background link stopped." : "The background link was not running.");
         return 0;
     }
 
@@ -114,7 +114,7 @@ public static class Program
 
             case "exec":
             {
-                var command = Arg(rest, 0) ?? throw new ArgumentException("Podaj polecenie: avh-link exec \"<polecenie>\"");
+                var command = Arg(rest, 0) ?? throw new ArgumentException("Provide a command: avh-link exec \"<command>\"");
                 return (Post("/api/exec", Json(new
                 {
                     command,
@@ -130,20 +130,20 @@ public static class Program
                 return FileRequest(rest);
 
             default:
-                throw new ArgumentException($"Nieznane polecenie: {verb}. Zobacz: avh-link --help");
+                throw new ArgumentException($"Unknown command: {verb}. See: avh-link --help");
         }
     }
 
     private static LinkRequest BackgroundRequest(string[] args)
     {
-        var action = Arg(args, 0) ?? throw new ArgumentException("Użycie: avh-link bg start|out|stdin|kill ...");
+        var action = Arg(args, 0) ?? throw new ArgumentException("Usage: avh-link bg start|out|stdin|kill ...");
         var rest = args.Skip(1).ToArray();
 
         switch (action)
         {
             case "start":
             {
-                var command = Arg(rest, 0) ?? throw new ArgumentException("Podaj polecenie: avh-link bg start \"<polecenie>\"");
+                var command = Arg(rest, 0) ?? throw new ArgumentException("Provide a command: avh-link bg start \"<command>\"");
                 return Post("/api/exec/start", Json(new
                 {
                     command,
@@ -161,8 +161,8 @@ public static class Program
 
             case "stdin":
             {
-                var id = Required(rest, 0, "avh-link bg stdin <id> \"<tekst>\"");
-                var text = Arg(rest, 1) ?? throw new ArgumentException("Podaj tekst do wysłania na stdin.");
+                var id = Required(rest, 0, "avh-link bg stdin <id> \"<text>\"");
+                var text = Arg(rest, 1) ?? throw new ArgumentException("Provide the text to send to stdin.");
                 return Post($"/api/exec/{id}/stdin", text, "text/plain");
             }
 
@@ -170,39 +170,39 @@ public static class Program
                 return Post($"/api/exec/{Required(rest, 0, "avh-link bg kill <id>")}/kill", null);
 
             default:
-                throw new ArgumentException($"Nieznana operacja tła: {action}");
+                throw new ArgumentException($"Unknown background action: {action}");
         }
     }
 
     private static (LinkRequest Request, string? SaveTo) FileRequest(string[] args)
     {
-        var action = Arg(args, 0) ?? throw new ArgumentException("Użycie: avh-link fs list|read|write|download|upload|mkdir|delete|move ...");
+        var action = Arg(args, 0) ?? throw new ArgumentException("Usage: avh-link fs list|read|write|download|upload|mkdir|delete|move ...");
         var rest = args.Skip(1).ToArray();
 
         switch (action)
         {
             case "list":
-                return (Get("/api/fs/list", $"path={Uri.EscapeDataString(Required(rest, 0, "avh-link fs list <ścieżka>"))}"), null);
+                return (Get("/api/fs/list", $"path={Uri.EscapeDataString(Required(rest, 0, "avh-link fs list <path>"))}"), null);
 
             case "read":
             {
-                var query = $"path={Uri.EscapeDataString(Required(rest, 0, "avh-link fs read <ścieżka>"))}";
+                var query = $"path={Uri.EscapeDataString(Required(rest, 0, "avh-link fs read <path>"))}";
                 if (OptionInt(rest, "--max-bytes") is { } max) query += $"&maxBytes={max}";
                 return (Get("/api/fs/read", query), null);
             }
 
             case "download":
             {
-                var remote = Required(rest, 0, "avh-link fs download <zdalna> <lokalna>");
-                var local = Required(rest, 1, "avh-link fs download <zdalna> <lokalna>");
+                var remote = Required(rest, 0, "avh-link fs download <remote> <local>");
+                var local = Required(rest, 1, "avh-link fs download <remote> <local>");
                 return (Get("/api/fs/download", $"path={Uri.EscapeDataString(remote)}"), local);
             }
 
             case "write":
             {
-                var path = Required(rest, 0, "avh-link fs write <ścieżka> --text \"<treść>\"");
+                var path = Required(rest, 0, "avh-link fs write <path> --text \"<content>\"");
                 var text = Option(rest, "--text")
-                    ?? throw new ArgumentException("Podaj treść przez --text \"<treść>\" albo użyj fs upload.");
+                    ?? throw new ArgumentException("Provide content with --text \"<content>\" or use fs upload.");
                 return (Post("/api/fs/write", Json(new
                 {
                     path,
@@ -213,8 +213,8 @@ public static class Program
 
             case "upload":
             {
-                var local = Required(rest, 0, "avh-link fs upload <lokalna> <zdalna>");
-                var remote = Required(rest, 1, "avh-link fs upload <lokalna> <zdalna>");
+                var local = Required(rest, 0, "avh-link fs upload <local> <remote>");
+                var remote = Required(rest, 1, "avh-link fs upload <local> <remote>");
                 var bytes = File.ReadAllBytes(local);
                 return (new LinkRequest
                 {
@@ -227,24 +227,24 @@ public static class Program
             }
 
             case "mkdir":
-                return (Post("/api/fs/mkdir", Json(new { path = Required(rest, 0, "avh-link fs mkdir <ścieżka>") })), null);
+                return (Post("/api/fs/mkdir", Json(new { path = Required(rest, 0, "avh-link fs mkdir <path>") })), null);
 
             case "delete":
                 return (Post("/api/fs/delete", Json(new
                 {
-                    path = Required(rest, 0, "avh-link fs delete <ścieżka>"),
+                    path = Required(rest, 0, "avh-link fs delete <path>"),
                     recursive = rest.Contains("--recursive"),
                 })), null);
 
             case "move":
                 return (Post("/api/fs/move", Json(new
                 {
-                    from = Required(rest, 0, "avh-link fs move <z> <do>"),
-                    to = Required(rest, 1, "avh-link fs move <z> <do>"),
+                    from = Required(rest, 0, "avh-link fs move <from> <to>"),
+                    to = Required(rest, 1, "avh-link fs move <from> <to>"),
                 })), null);
 
             default:
-                throw new ArgumentException($"Nieznana operacja na plikach: {action}");
+                throw new ArgumentException($"Unknown file action: {action}");
         }
     }
 
@@ -262,7 +262,7 @@ public static class Program
         }
 
         var text = response.Body ?? (response.BodyBase64 is { } raw
-            ? $"[{Convert.FromBase64String(raw).Length} bajtów binarnych - użyj fs download]"
+            ? $"[{Convert.FromBase64String(raw).Length} binary bytes - use fs download]"
             : "");
 
         if (response.IsSuccess)
@@ -306,7 +306,7 @@ public static class Program
         index < args.Length && !args[index].StartsWith("--") ? args[index] : null;
 
     private static string Required(string[] args, int index, string usage) =>
-        Arg(args, index) ?? throw new ArgumentException($"Użycie: {usage}");
+        Arg(args, index) ?? throw new ArgumentException($"Usage: {usage}");
 
     private static string? Option(string[] args, string name)
     {
@@ -318,38 +318,38 @@ public static class Program
         int.TryParse(Option(args, name), out var value) ? value : null;
 
     private static void PrintUsage() => Console.WriteLine("""
-        avh-link - zdalna powłoka i pliki przez Tailcat.Link (bez adresów IP i portów)
+        avh-link - remote shell and files over Tailcat.Link (no IP addresses, no ports)
 
-        POŁĄCZENIE
-          avh-link join <kod>                 sparowanie, kod jednorazowy z okna AgentVirtualHand
-          avh-link up                         zestawia link w tle (pierwsze polecenie robi to samo)
-          avh-link down                       zamyka link w tle
-          avh-link forget                     usuwa sparowanie z tej maszyny
+        CONNECTION
+          avh-link join <code>                pair with a single-use code from the AVH window
+          avh-link up                         bring the link up in the background (first command does this too)
+          avh-link down                       close the background link
+          avh-link forget                     remove the pairing from this machine
 
-        POLECENIA
-          avh-link exec "<polecenie>" [--cwd <ścieżka>] [--timeout <sekundy>]
-          avh-link bg start "<polecenie>" [--cwd <ścieżka>] [--timeout <sekundy>]
+        COMMANDS
+          avh-link exec "<command>" [--cwd <path>] [--timeout <seconds>]
+          avh-link bg start "<command>" [--cwd <path>] [--timeout <seconds>]
           avh-link bg out <id> [--out-offset N] [--err-offset N]
-          avh-link bg stdin <id> "<tekst>"
+          avh-link bg stdin <id> "<text>"
           avh-link bg kill <id>
 
-        PLIKI
-          avh-link fs list <ścieżka>
-          avh-link fs read <ścieżka> [--max-bytes N]
-          avh-link fs download <zdalna> <lokalna>
-          avh-link fs write <ścieżka> --text "<treść>" [--append]
-          avh-link fs upload <lokalna> <zdalna>
-          avh-link fs mkdir <ścieżka>
-          avh-link fs delete <ścieżka> [--recursive]
-          avh-link fs move <z> <do>
+        FILES
+          avh-link fs list <path>
+          avh-link fs read <path> [--max-bytes N]
+          avh-link fs download <remote> <local>
+          avh-link fs write <path> --text "<content>" [--append]
+          avh-link fs upload <local> <remote>
+          avh-link fs mkdir <path>
+          avh-link fs delete <path> [--recursive]
+          avh-link fs move <from> <to>
 
-        RESZTA
-          avh-link system                     system, powłoka, dyski, katalog domowy
-          avh-link session                    pozostały czas dostępu
-          avh-link session end                koniec pracy, zamyka dostęp
-          avh-link api                        dokumentacja API maszyny zdalnej
+        OTHER
+          avh-link system                     system, shell, drives, home directory
+          avh-link session                    remaining access time
+          avh-link session end                finish work, closes access
+          avh-link api                        remote machine's API reference
 
-        DODATKOWO
-          --store <katalog>                   inne miejsce na sparowanie (albo AVH_LINK_STORE)
+        EXTRA
+          --store <dir>                       different place for the pairing (or AVH_LINK_STORE)
         """);
 }

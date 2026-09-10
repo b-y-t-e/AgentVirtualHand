@@ -1,64 +1,64 @@
 namespace AgentVirtualHand.Server;
 
 /// <summary>
-/// Dokumentacja API HTTP zwracana pod /api/help. Czyta ją model pracujacy przez aplikacje Hub;
-/// klient avh-link opakowuje te same endpointy we wlasne polecenia (avh-link --help).
+/// HTTP API reference returned from /api/help. The model working through the Hub reads it;
+/// the avh-link client wraps the same endpoints in its own commands (avh-link --help).
 /// </summary>
 public static class HelpText
 {
     public static string Markdown() => """
-        # AVH - zdalne sterowanie maszyną przez Tailcat.Link
+        # AVH - remote control of a machine over Tailcat.Link
 
-        Ruch idzie linkiem Tailcata, ale API jest zwykłym HTTP wystawionym lokalnie przez
-        aplikację, przez którą się łączysz. Adres i token dostajesz w promptcie - prowadzą
-        wyłącznie do tej jednej maszyny.
+        Traffic goes over the Tailcat link, but the API is plain HTTP exposed locally by the
+        app you connect through. The address and token come in the prompt - they lead only to
+        this one machine.
 
-        Dostęp wygasa o godzinie ustawionej przez właściciela maszyny. Po wygaśnięciu każde
-        żądanie kończy się `401` i trzeba poprosić o ponowne otwarcie dostępu w jego oknie.
-        `502` oznacza chwilowo zerwany link, nie brak uprawnień.
+        Access expires at the time set by the machine owner. After that every request returns
+        `401` and you have to ask the owner to grant access again in their window.
+        `502` means the link is briefly down, not that you lack permission.
 
-        Na jednej maszynie może pracować kilku klientów naraz, każdy z własnym oknem dostępu.
-        `GET /api/session` pokazuje w polu `otherMachinesConnected`, ilu jeszcze pracuje obok -
-        licz się z tym, że ktoś może w tym czasie zmieniać te same pliki.
+        Several clients can work on one machine at once, each with its own access window.
+        `GET /api/session` reports how many others are connected in `otherMachinesConnected` -
+        expect that someone may be changing the same files at the same time.
 
-        ## Sesja
-        - `GET  /api/session`      - ile czasu zostało, kto jest połączony
-        - `POST /api/session/end`  - dobrowolne zakończenie sesji (kulturalne wyjście)
-        - `GET  /api/system`       - host, user, OS, dyski, katalog roboczy
+        ## Session
+        - `GET  /api/session`      - time left, who is connected
+        - `POST /api/session/end`  - finish the session voluntarily (clean exit)
+        - `GET  /api/system`       - host, user, OS, drives, working directory
 
-        ## Uruchamianie poleceń
+        ## Running commands
         `POST /api/exec`
         ```json
         { "command": "dotnet --info", "shell": "powershell", "cwd": "C:\\\\Work", "timeoutSeconds": 120 }
         ```
-        Odpowiedz: `exitCode`, `stdout`, `stderr`, `timedOut`, `durationMs`.
-        `shell`: `powershell` | `pwsh` | `cmd` | `bash` | `sh` (domyślnie zależy od systemu).
+        Response: `exitCode`, `stdout`, `stderr`, `timedOut`, `durationMs`.
+        `shell`: `powershell` | `pwsh` | `cmd` | `bash` | `sh` (defaults to the OS).
 
-        WAŻNE: `command` to string w JSON, więc każdy backslash musi być podwojony.
-        Nazwa instancji `SERWER\INSTANCJA`, ścieżka `C:\Temp` - w JSON pisz `SERWER\\INSTANCJA`
-        i `C:\\Temp` albo używaj `/`. Pojedynczy `\` psuje JSON i dostajesz błąd parsowania.
+        IMPORTANT: `command` is a JSON string, so every backslash must be doubled.
+        Instance name `SERVER\INSTANCE`, path `C:\Temp` - in JSON write `SERVER\\INSTANCE`
+        and `C:\\Temp`, or use `/`. A single `\` breaks the JSON and you get a parse error.
 
-        Długie operacje (instalacje, kompilacje, uruchomione serwisy):
-        - `POST /api/exec/start` - te same pola, zwraca `{ "id": "..." }`
-        - `GET  /api/exec/{id}?outOffset=0&errOffset=0` - przyrostowy output; przekaż zwrócone
-          `outOffset`/`errOffset` w kolejnym zapytaniu, `running` mówi czy proces jeszcze żyje
-        - `POST /api/exec/{id}/stdin` - body = tekst wysyłany na stdin procesu
-        - `POST /api/exec/{id}/kill` - ubicie procesu wraz z drzewem potomnym
+        Long operations (installs, builds, running services):
+        - `POST /api/exec/start` - same fields, returns `{ "id": "..." }`
+        - `GET  /api/exec/{id}?outOffset=0&errOffset=0` - incremental output; pass the returned
+          `outOffset`/`errOffset` on the next call, `running` tells whether the process is alive
+        - `POST /api/exec/{id}/stdin` - body = text sent to the process stdin
+        - `POST /api/exec/{id}/kill` - kill the process with its child tree
 
-        ## Pliki
-        - `GET  /api/fs/list?path=C:\Work`
+        ## Files
+        - `GET  /api/fs/list?path=C:/Work`
         - `GET  /api/fs/read?path=...&maxBytes=1000000`
-        - `GET  /api/fs/download?path=...` - surowe bajty
-        - `POST /api/fs/write` - `{ "path": "...", "content": "..." }` lub `contentBase64`, opcjonalnie `append`
-        - `POST /api/fs/upload?path=...` - body = surowe bajty pliku
+        - `GET  /api/fs/download?path=...` - raw bytes
+        - `POST /api/fs/write` - `{ "path": "...", "content": "..." }` or `contentBase64`, optional `append`
+        - `POST /api/fs/upload?path=...` - body = raw file bytes
         - `POST /api/fs/mkdir` - `{ "path": "..." }`
         - `POST /api/fs/delete` - `{ "path": "...", "recursive": true }`
         - `POST /api/fs/move` - `{ "from": "...", "to": "..." }`
 
-        ## Uwagi
-        - ścieżki Windows pisz z ukośnikiem `/` albo podwójnym backslashem;
-        - długie operacje puszczaj przez `/api/exec/start`, nie przez zwykły `exec`;
-        - operacje destrukcyjne (kasowanie, nadpisywanie, instalacje) potwierdź z właścicielem maszyny.
+        ## Notes
+        - write Windows paths with a `/` or a doubled backslash;
+        - run long operations through `/api/exec/start`, not plain `exec`;
+        - confirm destructive operations (delete, overwrite, install) with the machine owner.
 
         """;
 }

@@ -38,12 +38,12 @@ internal static class Program
         var code = Value(args, "--pair");
         if (code is null)
         {
-            Console.WriteLine("Użycie: avh-hub --pair <kod zaproszenia> [--name <nazwa>]");
+            Console.WriteLine("Usage: avh-hub --pair <invite code> [--name <name>]");
             return 2;
         }
 
         var connections = ConnectionStore.Load();
-        var name = Value(args, "--name") ?? $"maszyna {connections.Count + 1}";
+        var name = Value(args, "--name") ?? $"machine {connections.Count + 1}";
         var entry = new ConnectionEntry(Guid.NewGuid().ToString("N")[..12], name, 0, Enabled: true, Token: "");
 
         await using var connection = new LinkConnection(entry);
@@ -55,7 +55,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Nie udało się sparować: {ex.Message}");
+            Console.WriteLine($"Pairing failed: {ex.Message}");
             ConnectionStore.Forget(entry);
             return 1;
         }
@@ -64,8 +64,8 @@ internal static class Program
         ConnectionStore.Save(connections);
 
         Console.WriteLine();
-        Console.WriteLine($"  Maszyna:  {connection.Entry.Name}");
-        Console.WriteLine($"  Adres:    {connection.BaseUrl}   (tylko po uruchomieniu okna avh-hub)");
+        Console.WriteLine($"  Machine:  {connection.Entry.Name}");
+        Console.WriteLine($"  Address:  {connection.BaseUrl}   (only while the avh-hub window runs)");
         Console.WriteLine($"  Token:    {connection.Token}");
         Console.WriteLine();
         return 0;

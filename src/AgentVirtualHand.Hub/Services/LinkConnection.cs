@@ -79,12 +79,12 @@ public sealed class LinkConnection : IAsyncDisposable
 
         link.Connected += () =>
         {
-            Audit?.Invoke("link", $"{Entry.Name}: połączono");
+            Audit?.Invoke("link", $"{Entry.Name}: connected");
             Changed?.Invoke();
         };
         link.Disconnected += reason =>
         {
-            Audit?.Invoke("link", $"{Entry.Name}: rozłączono ({reason})");
+            Audit?.Invoke("link", $"{Entry.Name}: disconnected ({reason})");
             Changed?.Invoke();
         };
 
@@ -104,13 +104,13 @@ public sealed class LinkConnection : IAsyncDisposable
                 await link.DisposeAsync().ConfigureAwait(false);
                 _link = null;
                 throw new TimeoutException(
-                    "Druga maszyna nie potwierdziła sparowania. Kod mógł wygasnąć albo host jest już sparowany z inną maszyną - poproś o nowy kod.");
+                    "The other machine did not confirm pairing. The code may have expired or the host is already paired with another machine - ask for a new code.");
             }
         }
 
         await StartLocalServerAsync().ConfigureAwait(false);
 
-        Audit?.Invoke("link", $"{Entry.Name}: gotowe na {BaseUrl}");
+        Audit?.Invoke("link", $"{Entry.Name}: ready on {BaseUrl}");
         Changed?.Invoke();
     }
 
@@ -131,7 +131,7 @@ public sealed class LinkConnection : IAsyncDisposable
 
         if (app is not null || link is not null)
         {
-            Audit?.Invoke("link", $"{Entry.Name}: wyłączone");
+            Audit?.Invoke("link", $"{Entry.Name}: turned off");
             Changed?.Invoke();
         }
     }
@@ -140,7 +140,7 @@ public sealed class LinkConnection : IAsyncDisposable
     public void RotateToken()
     {
         Entry = Entry with { Token = NewToken() };
-        Audit?.Invoke("link", $"{Entry.Name}: nowy token, poprzednie prompty przestały działać");
+        Audit?.Invoke("link", $"{Entry.Name}: new token, earlier prompts stopped working");
         Changed?.Invoke();
     }
 
@@ -166,7 +166,7 @@ public sealed class LinkConnection : IAsyncDisposable
             }
             catch (Exception ex) when (port != 0)
             {
-                Audit?.Invoke("link", $"{Entry.Name}: port {port} zajęty ({ex.Message}), biorę wolny");
+                Audit?.Invoke("link", $"{Entry.Name}: port {port} busy ({ex.Message}), taking a free one");
             }
         }
     }
@@ -202,7 +202,7 @@ public sealed class LinkConnection : IAsyncDisposable
         if (!IsAuthorized(context))
         {
             context.Response.StatusCode = 401;
-            await context.Response.WriteAsJsonAsync(new { error = "Brak lub zły token tego połączenia." });
+            await context.Response.WriteAsJsonAsync(new { error = "Missing or wrong token for this connection." });
             return;
         }
 
@@ -210,7 +210,7 @@ public sealed class LinkConnection : IAsyncDisposable
         if (link is null)
         {
             context.Response.StatusCode = 503;
-            await context.Response.WriteAsJsonAsync(new { error = "Połączenie jest wyłączone." });
+            await context.Response.WriteAsJsonAsync(new { error = "This connection is turned off." });
             return;
         }
 

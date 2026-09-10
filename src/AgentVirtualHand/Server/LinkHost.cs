@@ -56,7 +56,7 @@ public sealed class LinkHost : IAsyncDisposable
 
     public async Task StartAsync(int maxPeers)
     {
-        if (_host is not null) throw new InvalidOperationException("Link już działa.");
+        if (_host is not null) throw new InvalidOperationException("Link already running.");
 
         var options = new LinkOptions
         {
@@ -74,13 +74,13 @@ public sealed class LinkHost : IAsyncDisposable
             // Kod byl jednorazowy i wlasnie zostal zuzyty - nie ma sensu dalej go pokazywac.
             _invitation = null;
 
-            Audit?.Invoke("link", $"{Name(e.Peer)}: dołączyła kodem zaproszenia");
+            Audit?.Invoke("link", $"{Name(e.Peer)}: joined with an invite code");
             PeerJoined?.Invoke(Describe(e.Peer));
             Changed?.Invoke();
         };
         host.PeerLeft += (_, e) =>
         {
-            Audit?.Invoke("link", $"{Name(e.Peer)}: rozłączona ({e.Reason})");
+            Audit?.Invoke("link", $"{Name(e.Peer)}: disconnected ({e.Reason})");
             Changed?.Invoke();
         };
 
@@ -88,7 +88,7 @@ public sealed class LinkHost : IAsyncDisposable
 
         // Zadnego kodu na starcie: kod pojawia sie dopiero, gdy operator zaprasza maszyne,
         // i znika, gdy zostanie uzyty. Inaczej okno pokazywaloby martwy kod z poprzedniej sesji.
-        Audit?.Invoke("link", "Link gotowy");
+        Audit?.Invoke("link", "Link ready");
         Changed?.Invoke();
     }
 
@@ -98,7 +98,7 @@ public sealed class LinkHost : IAsyncDisposable
     /// </summary>
     public async Task<LinkInvitation> InviteAsync()
     {
-        if (_host is null) throw new InvalidOperationException("Link nie działa.");
+        if (_host is null) throw new InvalidOperationException("Link is not running.");
 
         var invitation = await _host.InviteAsync(new InvitationRequest
         {
@@ -108,7 +108,7 @@ public sealed class LinkHost : IAsyncDisposable
 
         _invitation = invitation;
 
-        Audit?.Invoke("link", $"Kod zaproszenia ważny do {invitation.ExpiresAt.LocalDateTime:HH:mm}");
+        Audit?.Invoke("link", $"Invite code valid until {invitation.ExpiresAt.LocalDateTime:HH:mm}");
         Changed?.Invoke();
         return invitation;
     }
@@ -122,10 +122,10 @@ public sealed class LinkHost : IAsyncDisposable
         if (_host is null) return;
         if (_host.Peers.FirstOrDefault(p => p.Key.ToString() == peerKey) is not { } peer) return;
 
-        _sessions.Revoke(peerKey, "maszyna odpięta");
+        _sessions.Revoke(peerKey, "machine unpaired");
         await _host.ForgetPeerAsync(peer).ConfigureAwait(false);
 
-        Audit?.Invoke("link", $"{Name(peer)}: odpięta, powrót wymaga nowego kodu");
+        Audit?.Invoke("link", $"{Name(peer)}: unpaired, coming back needs a new code");
         Changed?.Invoke();
     }
 
@@ -138,7 +138,7 @@ public sealed class LinkHost : IAsyncDisposable
         _invitation = null;
         await host.DisposeAsync().ConfigureAwait(false);
 
-        Audit?.Invoke("link", "Link zatrzymany");
+        Audit?.Invoke("link", "Link stopped");
         Changed?.Invoke();
     }
 
@@ -161,13 +161,13 @@ public sealed class LinkHost : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            return LinkCodec.Encode(LinkResponse.Error(400, $"Niepoprawna koperta: {ex.Message}"));
+            return LinkCodec.Encode(LinkResponse.Error(400, $"Malformed envelope: {ex.Message}"));
         }
 
         var session = _sessions.ForPeer(peer.Key.ToString());
         if (session is null)
             return LinkCodec.Encode(LinkResponse.Error(401,
-                "Dostęp zamknięty - właściciel maszyny musi go otworzyć w oknie AVH."));
+                "Access closed - the machine owner must grant it in the AVH window."));
 
         try
         {
@@ -176,7 +176,7 @@ public sealed class LinkHost : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Audit?.Invoke("deny", $"{Name(peer)}: błąd obsługi żądania - {ex.Message}");
+            Audit?.Invoke("deny", $"{Name(peer)}: request handling error - {ex.Message}");
             return LinkCodec.Encode(LinkResponse.Error(500, ex.Message));
         }
     }
@@ -223,5 +223,5 @@ public sealed class LinkHost : IAsyncDisposable
         new(peer.Key.ToString(), Name(peer), peer.IsConnected, peer.PairedAt);
 
     private static string Name(ILinkPeer peer) =>
-        string.IsNullOrWhiteSpace(peer.Name) ? "nieznana maszyna" : peer.Name;
+        string.IsNullOrWhiteSpace(peer.Name) ? "unknown machine" : peer.Name;
 }

@@ -1,137 +1,139 @@
-# AgentVirtualHand
+# AVH
 
-Awaryjna "zdalna reka" na maszynie: aplikacja Avalonia (Windows + Linux) wystawia maszyne
-przez **Tailcat.Link**, a sparowany klient (np. Claude Code na drugim komputerze) moze wykonywac
-polecenia powloki, instalowac oprogramowanie, pisac i kompilowac kod oraz zarzadzac plikami.
+An emergency "remote hand" for a machine: an Avalonia app (Windows + Linux) exposes a machine
+over **Tailcat.Link**, and a paired client (for example Claude Code on another computer) can run
+shell commands, install software, write and compile code, and manage files.
 
-Polaczenie nie idzie po adresie IP: nie ma hosta, portu ani reguly w firewallu. Obie maszyny
-spotykaja sie przez link, a jedyne, co przechodzi przez czlowieka, to jednorazowy kod zaproszenia.
+The connection does not use an IP address: there is no host, port, or firewall rule. The two
+machines meet over the link, and the only thing that passes through a human is a single-use
+invite code.
 
-Dostep jest **osobno otwierany**, **czasowy** i **w pelni widoczny** w logu aplikacji.
+Access is **granted for a set time**, **expires on its own**, and is **fully visible** in the
+app's log.
 
-## Jak to dziala
+## How it works
 
-1. Na maszynie sterowanej: **Uruchom link**, ustaw suwakiem **na ile wpuszczasz** (5 min - 8 h)
-   i kliknij **Zapros maszyne**. Aplikacja pokazuje kod wazny 15 minut.
-2. Przekazujesz kod tam, gdzie ma dzialac klient: `avh-link join <kod>` albo wklejenie w oknie
-   **avh-hub**. Kod wpuszcza **jedna** maszyne i po uzyciu **znika z okna**.
-3. Maszyna, ktora go uzyla, od razu pracuje - pojawia sie na liscie z odliczaniem. Przekazanie
-   kodu jest juz decyzja o wpuszczeniu, wiec nie ma osobnego potwierdzania.
-4. Gdy czas minie, maszyna traci dostep i potrzebuje nowego kodu. W trakcie mozna **Przedluzyc**
-   albo **Odetnac** kazda maszyne osobno; **Odetnij wszystkie** konczy prace wszystkim naraz.
+1. On the controlled machine: **Start link**, set with the slider **how long you let a machine in**
+   (5 min - 8 h), and click **Invite machine**. The app shows a code valid for 15 minutes.
+2. Pass the code to where the client will run: `avh-link join <code>`, or paste it in the
+   **avh-hub** window. The code lets **one** machine in and **disappears once used**.
+3. The machine that used it works immediately - it appears in the list with a countdown. Passing
+   the code is already the decision to let it in, so there is no separate confirmation.
+4. When the time runs out, the machine loses access and needs a new code. Meanwhile you can
+   **Extend** or **Cut off** each machine individually; **Cut off all** ends work for everyone.
 
-Kilka maszyn moze pracowac naraz, kazda z wlasnym oknem czasowym i wlasnym tokenem.
+Several machines can work at once, each with its own time window and its own token.
 
-Pierwsze polecenie zestawia link w tle (kilkanascie sekund), kolejne ida w okolo 0,7 s.
-`avh-link down` zamyka polaczenie w tle, `avh-link up` podnosi je z powrotem.
+The first command brings the link up in the background (a dozen or so seconds), later ones run in
+about 0.7 s. `avh-link down` closes the background link, `avh-link up` brings it back.
 
-## Blokada okna haslem
+## Password lock
 
-Oba okna - maszyny sterowanej i huba - sa chronione haslem. Pierwsze uruchomienie **wymusza**
-jego ustawienie; nie ma hasla domyslnego, bo znalby je kazdy, kto pobierze plik.
-Po **30 sekundach** bez ruchu myszy i klawiatury tresc okna znika i wraca dopiero po podaniu
-hasla. Bledna proba kosztuje **10 sekund** odliczania, w trakcie ktorego przycisk nie dziala.
+Both windows - the controlled machine and the hub - are password protected. First launch
+**forces** you to set one; there is no default password, because anyone who downloaded the file
+would know it. After **30 seconds** without mouse or keyboard the window content disappears and
+returns only after the password is entered. A wrong attempt costs a **10-second** countdown
+during which the button is disabled.
 
-Trzymany jest wylacznie skrot PBKDF2-SHA256 (210 tys. iteracji, losowa sol) w pliku
-`lock.json` obok ustawien aplikacji. Zapomnianego hasla nie da sie odzyskac - kasuje sie
-ten plik i ustawia nowe przy kolejnym starcie.
+Only a PBKDF2-SHA256 hash (210k iterations, random salt) is kept, in `lock.json` next to the
+app settings. A forgotten password cannot be recovered - delete that file and set a new one on
+the next start.
 
-## Bezpieczenstwo
+## Security
 
-Co jest zrobione:
+What is in place:
 
-- okno zablokowane haslem po 30 s bezczynnosci, z kara 10 s za bledna probe;
+- window locked by password after 30 s idle, with a 10 s penalty for a wrong attempt;
+- the HTTP server is only an internal bus, listens **on 127.0.0.1 only** and on a
+  system-assigned port - there is nothing to scan from the network, no port is exposed;
+- transport between machines is set up by Tailcat.Link (encrypted, with its own node identity);
+- single-use invite code valid for 15 minutes; **New code** invalidates the previous one;
+- the code grants access only for the set time: once it passes, the machine can do nothing
+  without another code, even though the pairing remains;
+- the session token never leaves the controlled machine - the client neither knows nor forwards it;
+- a hard session time limit; **Cut off** kills the session and every running process;
+- closing the app window ends the session and stops the link;
+- every command and file operation goes to the live log in the GUI.
 
-- serwer HTTP sluzy tylko za wewnetrzna szyne, sluchaa **wylacznie na 127.0.0.1** i na porcie
-  przydzielonym przez system - z sieci nie ma czego skanowac, zaden port nie jest wystawiony;
-- transport miedzy maszynami zestawia Tailcat.Link (szyfrowany, z wlasna tozsamoscia wezla);
-- kod zaproszenia jednorazowy, wazny 15 minut; **Nowy kod** uniewaznia poprzedni;
-- kod daje dostep tylko na ustawiony czas: po jego uplywie maszyna nie zrobi juz nic
-  bez kolejnego kodu, mimo ze sparowanie zostaje;
-- token sesji nigdy nie opuszcza maszyny sterowanej - klient go nie zna i nie przekazuje;
-- twardy limit czasu sesji, przycisk **Odetnij dostep** ubija sesje i wszystkie uruchomione procesy;
-- zamkniecie okna aplikacji konczy sesje i zatrzymuje link;
-- kazde polecenie i operacja na plikach trafia do logu na zywo w GUI.
+What is **not** there, and what to keep in mind:
 
-Czego **nie** ma i o czym trzeba pamietac:
+- a paired client has the full rights of the account the app runs under - there is no sandbox
+  and no allow-list of commands;
+- pairing is persistent (trust on first use): after the first `join` the other machine comes
+  back without a code. Remove it with `avh-link forget` (or **Remove** in the hub) on the client
+  side, and with the **Unpair** action next to the machine name on the host side;
+- the invite code is **single-use**: it lets one machine in and expires after use. Another
+  machine needs a new code (**New code**);
+- several clients can work on one machine at once and **see each other's changes** - it is the
+  same machine, not separate sandboxes;
+- this is an emergency tool. Turn it on when you need help, turn it off when the problem is solved.
 
-- sparowany klient ma pelne uprawnienia konta, na ktorym dziala aplikacja - nie ma piaskownicy
-  ani listy dozwolonych polecen;
-- sparowanie jest trwale (trust on first use): po pierwszym `join` druga maszyna wraca bez kodu.
-  Odbiera sie je przez `avh-link forget` (albo **Usun** w hubie) po stronie klienta,
-  a po stronie hosta przyciskiem **Odepnij** przy nazwie maszyny;
-- kod zaproszenia jest **jednorazowy**: wpuszcza jedna maszyne i traci waznosc po uzyciu.
-  Kolejna maszyna wymaga nowego kodu (**Nowy kod**);
-- kilku klientow moze pracowac na jednej maszynie naraz i **widza nawzajem swoje zmiany** -
-  to ta sama maszyna, nie osobne piaskownice;
-- to narzedzie awaryjne. Wlaczasz je, gdy potrzebujesz pomocy, i wylaczasz, gdy problem jest rozwiazany.
-
-## Uruchomienie
+## Running
 
 ```bash
-dotnet run --project src/AgentVirtualHand          # GUI maszyny sterowanej
-dotnet build -c Release AgentVirtualHand.slnx      # kompilacja calosci
+dotnet run --project src/AgentVirtualHand          # controlled machine's GUI
+dotnet build -c Release AgentVirtualHand.slnx      # build everything
 ```
 
-Tryb bez pulpitu (serwer, SSH) - kod zaproszenia ladzie na konsoli, a po jego uzyciu
-wypisywany jest kolejny:
+Headless mode (server, SSH) - the invite code lands on the console, and once used the next one
+is printed:
 
 ```bash
 avh --headless --minutes 60
 ```
 
-Wydanie samodzielne (jeden plik na aplikacje, bez zainstalowanego .NET na maszynie docelowej):
+Standalone release (one file per app, no .NET installed on the target machine):
 
 ```bash
 python build.py                     # win-x64 -> publish/win-x64
-python build.py --rid linux-x64     # wydanie dla Linuksa
-python build.py --only hub --clean  # tylko wybrana aplikacja, z czyszczeniem katalogu
+python build.py --rid linux-x64     # Linux release
+python build.py --only hub --clean  # a single app, cleaning the output folder
 ```
 
-Skrypt sklada trzy pliki: `avh` (maszyna sterowana), `avh-hub` i `avh-link`
-(dwa rodzaje klienta). Runtime .NET i biblioteki natywne siedza w srodku, wiec na maszynie
-docelowej wystarczy skopiowac jeden plik.
+The script builds three files: `avh` (controlled machine), `avh-hub` and `avh-link`
+(the two kinds of client). The .NET runtime and native libraries are inside, so on the target
+machine you only copy one file.
 
-## Dwa rodzaje klienta
+## Two kinds of client
 
-Do maszyny sterowanej mozna podlaczyc sie na dwa sposoby - obie strony rozmawiaja tym samym
-protokolem, wiec host nie widzi roznicy.
+You can connect to the controlled machine two ways - both speak the same protocol, so the host
+sees no difference.
 
-**avh-hub** - aplikacja okienkowa z lista komputerow. Kazde polaczenie dostaje **wlasny port
-na 127.0.0.1 i wlasny token**, a "Kopiuj prompt" generuje instrukcje dla modelu tylko do tej
-jednej maszyny. To jest sedno: model dostaje adres i token jednego komputera i nie ma czym
-siegnac do pozostalych. Kazde polaczenie mozna wylaczyc bez ruszania reszty, a "Nowy token"
-uniewaznia wszystkie wczesniej skopiowane prompty tej maszyny.
+**avh-hub** - a windowed app with a list of computers. Each connection gets its **own port on
+127.0.0.1 and its own token**, and "Copy prompt" builds the model's instructions for that one
+machine only. That is the point: the model gets one computer's address and token and has no way
+to reach the others. Each connection can be turned off without touching the rest, and "New token"
+invalidates every prompt copied earlier for that machine.
 
 ```bash
-avh-hub                                  # okno z lista komputerow
-avh-hub --pair <kod> --name labsvcn      # dodanie maszyny z wiersza polecen
+avh-hub                                  # window with the list of computers
+avh-hub --pair <code> --name labsvcn     # add a machine from the command line
 ```
 
-Lista i tokeny leza w `%APPDATA%\AgentVirtualHand.Hub\connections.json`, a sparowanie kazdej
-maszyny w osobnym katalogu `links/<id>` - stad bierze sie izolacja polaczen.
+The list and tokens live in `%APPDATA%\avh-hub\connections.json`, and each machine's pairing in
+a separate `links/<id>` folder - that is where connection isolation comes from.
 
-**avh-link** - klient tekstowy dla jednej maszyny, opisany nizej.
+**avh-link** - a text client for a single machine, described below.
 
-## Polecenia klienta
+## Client commands
 
-| Polecenie | Opis |
+| Command | Description |
 | --- | --- |
-| `avh-link join <kod>` | sparowanie, kod jednorazowy z okna aplikacji |
-| `avh-link up` \| `down` | zestawia albo zamyka link trzymany w tle |
-| `avh-link forget` | usuwa sparowanie z tej maszyny |
-| `avh-link system` | host, uzytkownik, OS, powloka, dyski |
-| `avh-link session` \| `session end` | pozostaly czas / koniec pracy |
-| `avh-link exec "<polecenie>" [--cwd <sciezka>] [--timeout <s>]` | polecenie powloki |
-| `avh-link bg start "<polecenie>"` | dluga operacja w tle, zwraca `id` |
-| `avh-link bg out <id> [--out-offset N] [--err-offset N]` | przyrostowy output, `running`, `exitCode` |
-| `avh-link bg stdin <id> "<tekst>"` \| `bg kill <id>` | stdin procesu / ubicie drzewa procesow |
-| `avh-link fs list \| read \| write \| download \| upload \| mkdir \| delete \| move` | operacje na plikach |
-| `avh-link api` | dokumentacja API maszyny zdalnej |
-| `avh-link --help` | instrukcja samego klienta |
-| `--store <katalog>` | inne miejsce na sparowanie (albo `AVH_LINK_STORE`) |
+| `avh-link join <code>` | pair using a single-use code from the app window |
+| `avh-link up` \| `down` | bring up or close the background link |
+| `avh-link forget` | remove the pairing from this machine |
+| `avh-link system` | host, user, OS, shell, drives |
+| `avh-link session` \| `session end` | remaining time / finish work |
+| `avh-link exec "<command>" [--cwd <path>] [--timeout <s>]` | shell command |
+| `avh-link bg start "<command>"` | long operation in the background, returns `id` |
+| `avh-link bg out <id> [--out-offset N] [--err-offset N]` | incremental output, `running`, `exitCode` |
+| `avh-link bg stdin <id> "<text>"` \| `bg kill <id>` | process stdin / kill the process tree |
+| `avh-link fs list \| read \| write \| download \| upload \| mkdir \| delete \| move` | file operations |
+| `avh-link api` | remote machine's API reference |
+| `avh-link --help` | the client's own usage |
+| `--store <dir>` | different place for the pairing (or `AVH_LINK_STORE`) |
 
-Przyklad:
+Example:
 
 ```bash
 avh-link join tco2FwWCBNh-cOZl4meH0AA3DXgL1BNLQyisn3_T7hLFbOY5...
@@ -139,30 +141,31 @@ avh-link exec "winget install --id Git.Git -e --silent" --timeout 600
 avh-link fs download C:/Work/log.txt ./log.txt
 ```
 
-W sciezkach Windows uzywaj `/` albo podwojnych backslashy.
+In Windows paths use `/` or doubled backslashes.
 
-## Struktura
+## Layout
 
 ```
 src/AgentVirtualHand/
-  Program.cs                 start GUI + tryb --headless
-  Server/SessionManager.cs   okno dostepu, token, czas zycia sesji
-  Server/RemoteHttpServer.cs Kestrel na 127.0.0.1 + wszystkie endpointy
-  Server/LinkHost.cs         Tailcat.Link -> przekazanie zadania na loopback
-  Server/LinkProtocol.cs     koperta wymieniana z klientem (wspolna z avh-link)
-  Server/ShellRunner.cs      uruchamianie polecen i procesow w tle
-  Server/HelpText.cs         instrukcja zwracana przez avh-link help
-  Services/                  ustawienia, blokada okna haslem
+  Program.cs                 GUI start + --headless mode
+  Server/SessionManager.cs   access window, token, session lifetime
+  Server/RemoteHttpServer.cs Kestrel on 127.0.0.1 + all endpoints
+  Server/LinkHost.cs         Tailcat.Link -> forwarding requests to loopback
+  Server/HiddenLinkStore.cs  pairing state under a neutral file name
+  Server/LinkProtocol.cs     envelope exchanged with the client (shared with avh-link)
+  Server/ShellRunner.cs      running commands and background processes
+  Server/HelpText.cs         reference returned by /api/help
+  Services/                  settings, app-data paths, password lock
 
 src/AgentVirtualHand.Link/
-  Program.cs                 klient avh-link: polecenia -> koperty
-  LinkDaemon.cs              link trzymany w tle + nazwany potok dla polecen
+  Program.cs                 avh-link client: commands -> envelopes
+  LinkDaemon.cs              background link + named pipe for commands
 
 src/AgentVirtualHand.Hub/
-  Services/LinkConnection.cs jedno polaczenie: link + wlasny port i token na 127.0.0.1
-  Services/ConnectionStore.cs lista maszyn, tokeny, katalogi sparowan
-  Services/PromptBuilder.cs  prompt dla modelu - do jednej maszyny
-  ViewModels/HubViewModel.cs lista polaczen, dodawanie, wlaczanie, usuwanie
-  ViewModels/MainViewModel.cs stan aplikacji i logika GUI
-  Views/MainWindow.axaml     interfejs
+  Services/LinkConnection.cs one connection: link + own port and token on 127.0.0.1
+  Services/ConnectionStore.cs list of machines, tokens, pairing folders
+  Services/PromptBuilder.cs  the model's prompt - for one machine
+  ViewModels/HubViewModel.cs connection list: add, turn on/off, remove
+  ViewModels/MainViewModel.cs app state and GUI logic
+  Views/MainWindow.axaml     interface
 ```

@@ -79,12 +79,12 @@ public sealed class SessionManager
                 PeerKey: peerKey,
                 IssuedAt: now,
                 ExpiresAt: now + SessionDuration,
-                ClientName: string.IsNullOrWhiteSpace(clientName) ? "nieznany klient" : clientName);
+                ClientName: string.IsNullOrWhiteSpace(clientName) ? "unknown client" : clientName);
 
             _byPeer[peerKey] = created;
         }
 
-        Audit?.Invoke("pair", $"OTWARTO dostęp dla {created.ClientName}, do {created.ExpiresAt:HH:mm:ss}");
+        Audit?.Invoke("pair", $"GRANTED access to {created.ClientName}, until {created.ExpiresAt:HH:mm:ss}");
         Changed?.Invoke();
         return created;
     }
@@ -119,7 +119,7 @@ public sealed class SessionManager
 
         if (removed is null) return;
 
-        Audit?.Invoke("revoke", $"Dostęp odcięty dla {removed.ClientName}: {reason}");
+        Audit?.Invoke("revoke", $"Access cut off for {removed.ClientName}: {reason}");
         Changed?.Invoke();
     }
 
@@ -134,7 +134,7 @@ public sealed class SessionManager
 
         if (count == 0) return;
 
-        Audit?.Invoke("revoke", $"Dostęp odcięty dla wszystkich maszyn ({count}): {reason}");
+        Audit?.Invoke("revoke", $"Access cut off for all machines ({count}): {reason}");
         Changed?.Invoke();
     }
 
@@ -153,7 +153,7 @@ public sealed class SessionManager
             _byPeer[peerKey] = updated;
         }
 
-        Audit?.Invoke("session", $"Dostęp dla {updated.ClientName} przedłużony do {updated.ExpiresAt:HH:mm:ss}");
+        Audit?.Invoke("session", $"Access for {updated.ClientName} extended to {updated.ExpiresAt:HH:mm:ss}");
         Changed?.Invoke();
     }
 
@@ -174,7 +174,7 @@ public sealed class SessionManager
         foreach (var session in expired)
         {
             _byPeer.Remove(session.PeerKey);
-            Audit?.Invoke("session", $"Okno dostępu dla {session.ClientName} wygasło");
+            Audit?.Invoke("session", $"Access window for {session.ClientName} expired");
         }
     }
 

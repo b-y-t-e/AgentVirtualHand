@@ -13,7 +13,7 @@
   <Panel>
     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
 
-      <!-- Pasek stanu: czyja to maszyna i kto na niej teraz pracuje -->
+      <!-- Status bar: whose machine and who works on it now -->
       <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto" Height="44" Margin="24,0">
         <TextBlock Grid.Column="0" Text="avh" FontSize="12.5" FontWeight="SemiBold"
                    Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
@@ -30,53 +30,53 @@
       </Grid>
       <Border Grid.Row="0" Classes="sep" VerticalAlignment="Bottom" />
 
-      <!-- Link zatrzymany -->
+      <!-- Link stopped -->
       <StackPanel Grid.Row="1" Margin="24,26,24,24" Spacing="18" IsVisible="{Binding !IsRunning}">
         <StackPanel Spacing="8">
-          <TextBlock Text="Maszyna jest odcięta" FontSize="15" FontWeight="SemiBold"
+          <TextBlock Text="Machine is offline" FontSize="15" FontWeight="SemiBold"
                      Foreground="{DynamicResource Text}" />
           <TextBlock Classes="ui"
-                     Text="Uruchom link, przekaż kod zaproszenia maszynie, którą chcesz wpuścić, a potem otwórz jej dostęp. Bez adresu IP i bez otwartego portu - połączenie zestawia Tailcat." />
+                     Text="Start the link, send the invite code to the machine you want in, then let it in. No IP address, no open port - Tailcat sets up the connection." />
         </StackPanel>
-        <Button Classes="primary" Content="Uruchom link" HorizontalAlignment="Left" Width="160"
+        <Button Classes="primary" Content="Start link" HorizontalAlignment="Left" Width="160"
                 Click="OnToggleServer" />
       </StackPanel>
 
-      <!-- Link dziala, zaden kod nie czeka na uzycie -->
+      <!-- Link running, no code waiting to be used -->
       <StackPanel Grid.Row="1" Margin="24,26,24,24" Spacing="18" IsVisible="{Binding ShowInvitePrompt}">
         <TextBlock Classes="ui"
-                   Text="Zaproś maszynę, która ma tu pracować. Kod wpuszcza jedną maszynę na czas ustawiony poniżej, a potem znika." />
+                   Text="Invite the machine that should work here. The code lets one machine in for the time set below, then disappears." />
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Classes="primary" Content="Zaproś maszynę" Width="170" Click="OnInvite" />
-          <Button Content="Zatrzymaj link" Click="OnToggleServer" />
+          <Button Classes="primary" Content="Invite machine" Width="170" Click="OnInvite" />
+          <Button Content="Stop link" Click="OnToggleServer" />
         </StackPanel>
       </StackPanel>
 
-      <!-- Kod czeka na wpisanie po drugiej stronie -->
+      <!-- Code waiting to be entered on the other side -->
       <StackPanel Grid.Row="1" Margin="24,24,24,22" Spacing="16" IsVisible="{Binding HasInvitation}">
         <StackPanel Spacing="8">
-          <TextBlock Classes="k" Text="kod dla jednej maszyny" />
+          <TextBlock Classes="k" Text="code for one machine" />
           <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="13.5"
                                Foreground="{DynamicResource Link}" TextWrapping="Wrap" />
           <TextBlock Classes="k" Text="{Binding InvitationHint}" />
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Classes="primary" Content="Kopiuj kod" Width="140" Click="OnCopy" />
-          <Button Content="Nowy kod" Click="OnInvite" />
-          <Button Content="Zatrzymaj link" Click="OnToggleServer" />
+          <Button Classes="primary" Content="Copy code" Width="140" Click="OnCopy" />
+          <Button Content="New code" Click="OnInvite" />
+          <Button Content="Stop link" Click="OnToggleServer" />
         </StackPanel>
       </StackPanel>
 
-      <!-- Sparowane maszyny -->
+      <!-- Paired machines -->
       <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="24,16,24,0">
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
-          <TextBlock Grid.Column="0" Classes="k" Text="maszyny" />
+          <TextBlock Grid.Column="0" Classes="k" Text="machines" />
           <TextBlock Grid.Column="2" Classes="k" Text="{Binding MachinesSummary}" />
         </Grid>
 
         <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoMachines}"
-                   Text="Nikt teraz nie pracuje na tej maszynie. Maszyna pojawi się tutaj, gdy użyje kodu zaproszenia albo gdy wcześniej sparowana zgłosi się ponownie." />
+                   Text="Nobody is working on this machine right now. A machine shows up here once it uses an invite code, or when one paired earlier checks back in." />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasMachines}">
           <ItemsControl ItemsSource="{Binding Machines}">
@@ -98,11 +98,11 @@
                       <TextBlock Grid.Column="0" Classes="val" Text="{Binding DetailText}"
                                  VerticalAlignment="Center" />
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Classes="primary" Content="Wpuść" Click="OnAdmitMachine"
+                        <Button Classes="primary" Content="Let in" Click="OnAdmitMachine"
                                 IsVisible="{Binding !HasAccess}" />
-                        <Button Content="Przedłuż" Click="OnExtendAccess"
+                        <Button Content="Extend" Click="OnExtendAccess"
                                 IsVisible="{Binding HasAccess}" />
-                        <Button Classes="danger" Content="Odetnij" Click="OnRevokeAccess"
+                        <Button Classes="danger" Content="Cut off" Click="OnRevokeAccess"
                                 IsVisible="{Binding HasAccess}" />
                       </StackPanel>
                     </Grid>
@@ -116,10 +116,10 @@
         </ScrollViewer>
       </Grid>
 
-      <!-- Jedyny parametr: na jak długo kod wpuszcza maszynę -->
+      <!-- The only setting: how long the code lets a machine in -->
       <StackPanel Grid.Row="4" Margin="24,16,24,10" Spacing="8">
         <Grid ColumnDefinitions="Auto,*,Auto">
-          <TextBlock Grid.Column="0" Classes="k" Text="dostęp na" />
+          <TextBlock Grid.Column="0" Classes="k" Text="access for" />
           <TextBlock Grid.Column="2" Classes="val" Text="{Binding DurationText}" />
         </Grid>
         <Slider Minimum="5" Maximum="480" TickFrequency="5" IsSnapToTickEnabled="True"
@@ -155,13 +155,13 @@
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" Classes="ui" FontSize="12.5" MaxWidth="520"
                      VerticalAlignment="Center" Text="{Binding Hint}" />
-          <Button Grid.Column="1" Classes="danger" Content="Odetnij wszystkie"
+          <Button Grid.Column="1" Classes="danger" Content="Cut off all"
                   IsEnabled="{Binding HasMachines}" Click="OnRevokeEveryone" />
         </Grid>
       </Border>
     </Grid>
 
-    <!-- Zasłona blokady -->
+    <!-- Lock overlay -->
     <Border Classes="lock" IsVisible="{Binding Lock.IsLocked}">
       <Grid RowDefinitions="*,Auto,*" Margin="24,0">
         <StackPanel Grid.Row="1" Spacing="24" Width="320" HorizontalAlignment="Center">
@@ -175,13 +175,13 @@
 
           <StackPanel Spacing="12">
             <StackPanel Spacing="6">
-              <TextBlock Classes="k" Text="hasło" />
+              <TextBlock Classes="k" Text="password" />
               <TextBox Name="PasswordBox" PasswordChar="•" Text="{Binding Lock.Password}"
                        IsEnabled="{Binding Lock.CanSubmit}" KeyDown="OnLockKeyDown" />
             </StackPanel>
 
             <StackPanel Spacing="6" IsVisible="{Binding Lock.NeedsSetup}">
-              <TextBlock Classes="k" Text="powtórz hasło" />
+              <TextBlock Classes="k" Text="repeat password" />
               <TextBox PasswordChar="•" Text="{Binding Lock.Confirmation}" KeyDown="OnLockKeyDown" />
             </StackPanel>
           </StackPanel>
@@ -191,7 +191,7 @@
                     IsEnabled="{Binding Lock.CanSubmit}" Click="OnLockSubmit" />
             <TextBlock Classes="k" Height="14" IsVisible="{Binding Lock.HasPenalty}"
                        Foreground="{DynamicResource Warn}"
-                       Text="{Binding Lock.PenaltySeconds, StringFormat='kolejna próba za {0} s'}" />
+                       Text="{Binding Lock.PenaltySeconds, StringFormat='next try in {0} s'}" />
           </StackPanel>
         </StackPanel>
       </Grid>

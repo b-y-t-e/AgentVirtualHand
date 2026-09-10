@@ -116,7 +116,7 @@ public static class LinkDaemon
 
     private static async Task StartBackgroundAsync(string pipeName, string? storeRoot)
     {
-        var exe = Environment.ProcessPath ?? throw new InvalidOperationException("Nie znam ścieżki własnego procesu.");
+        var exe = Environment.ProcessPath ?? throw new InvalidOperationException("Unknown path to own process.");
 
         var start = new ProcessStartInfo(exe) { UseShellExecute = false, CreateNoWindow = true };
         start.ArgumentList.Add("--daemon");
@@ -137,7 +137,7 @@ public static class LinkDaemon
             await Task.Delay(500).ConfigureAwait(false);
         }
 
-        throw new TimeoutException("Nie udało się zestawić linku w tle. Sprawdź sparowanie: avh-link join <kod>");
+        throw new TimeoutException("Could not bring the background link up. Check pairing: avh-link join <code>");
     }
 
     private static async Task<LinkResponse> ExchangeAsync(string pipeName, LinkRequest request, TimeSpan timeout)
@@ -167,7 +167,7 @@ public static class LinkDaemon
         await stream.ReadExactlyAsync(header, ct).ConfigureAwait(false);
 
         var length = BitConverter.ToInt32(header);
-        if (length is < 0 or > 64 * 1024 * 1024) throw new InvalidOperationException("Niepoprawna długość ramki.");
+        if (length is < 0 or > 64 * 1024 * 1024) throw new InvalidOperationException("Invalid frame length.");
 
         var payload = new byte[length];
         await stream.ReadExactlyAsync(payload, ct).ConfigureAwait(false);

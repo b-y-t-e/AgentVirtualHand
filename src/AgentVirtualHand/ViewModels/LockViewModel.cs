@@ -44,8 +44,8 @@ public sealed class LockViewModel : INotifyPropertyChanged
         NeedsSetup = !_gate.IsConfigured;
         _isLocked = true;
         _message = NeedsSetup
-            ? "Ustaw hasło, którym będziesz odblokowywać to okno."
-            : "Okno zablokowane. Podaj hasło.";
+            ? "Set a password to unlock this window."
+            : "Window locked. Enter the password.";
 
         if (!runTimer) return;
 
@@ -87,7 +87,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
         private set => Set(ref _message, value);
     }
 
-    public string ActionText => NeedsSetup ? "Ustaw hasło" : "Odblokuj";
+    public string ActionText => NeedsSetup ? "Set password" : "Unlock";
 
     /// <summary>Ile sekund kary zostało po nieudanej próbie; 0 gdy można próbować.</summary>
     public int PenaltySeconds
@@ -125,7 +125,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
         get
         {
             var s = SecondsUntilLock;
-            return s >= 60 ? $"blokada za {s / 60}:{s % 60:00}" : $"blokada za {s} s";
+            return s >= 60 ? $"lock in {s / 60}:{s % 60:00}" : $"lock in {s} s";
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
 
         Password = "";
         Confirmation = "";
-        Message = "Okno zablokowane po 30 sekundach bezczynności. Podaj hasło.";
+        Message = "Window locked after 30 seconds idle. Enter the password.";
         IsLocked = true;
         SecondsUntilLock = 0;
     }
@@ -171,14 +171,14 @@ public sealed class LockViewModel : INotifyPropertyChanged
         Password = "";
         _penaltyUntil = _clock.GetUtcNow() + PenaltyAfterFailure;
         PenaltySeconds = (int)PenaltyAfterFailure.TotalSeconds;
-        Message = "Błędne hasło.";
+        Message = "Wrong password.";
     }
 
     private void SetPassword()
     {
         if (Password != Confirmation)
         {
-            Message = "Hasła się różnią.";
+            Message = "Passwords do not match.";
             return;
         }
 
@@ -214,12 +214,12 @@ public sealed class LockViewModel : INotifyPropertyChanged
             {
                 _penaltyUntil = null;
                 PenaltySeconds = 0;
-                Message = "Możesz spróbować ponownie.";
+                Message = "You can try again.";
             }
             else
             {
                 PenaltySeconds = left;
-                Message = $"Błędne hasło. Kolejna próba za {left} s.";
+                Message = $"Wrong password. Next try in {left} s.";
             }
         }
 

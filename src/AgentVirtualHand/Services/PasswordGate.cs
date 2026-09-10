@@ -25,7 +25,7 @@ public sealed class PasswordGate
     /// <summary>Ustawia hasło przy pierwszym uruchomieniu albo zmienia istniejące.</summary>
     public void Set(string password)
     {
-        if (password.Length < 4) throw new ArgumentException("Hasło musi mieć co najmniej 4 znaki.");
+        if (password.Length < 4) throw new ArgumentException("Password must be at least 4 characters.");
 
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);
         var key = Derive(password, salt);

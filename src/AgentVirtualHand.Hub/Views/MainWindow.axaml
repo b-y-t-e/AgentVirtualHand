@@ -28,29 +28,29 @@
       <!-- Dodanie maszyny: nazwa jest dla Ciebie, kod pochodzi z jej okna -->
       <Grid Grid.Row="1" Margin="24,20,24,18" ColumnDefinitions="170,16,*,16,Auto">
         <StackPanel Grid.Column="0" Spacing="6">
-          <TextBlock Classes="k" Text="nazwa" />
+          <TextBlock Classes="k" Text="name" />
           <TextBox Text="{Binding NewName}" Watermark="labsvcn" />
         </StackPanel>
         <StackPanel Grid.Column="2" Spacing="6">
-          <TextBlock Classes="k" Text="kod zaproszenia z okna tamtej maszyny" />
+          <TextBlock Classes="k" Text="invite code from that machine's window" />
           <TextBox Text="{Binding NewCode}" Watermark="tc..." />
         </StackPanel>
-        <Button Grid.Column="4" Classes="primary" Content="Dodaj komputer"
+        <Button Grid.Column="4" Classes="primary" Content="Add computer"
                 VerticalAlignment="Bottom" Click="OnAdd" />
       </Grid>
       <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
 
       <Grid Grid.Row="2" RowDefinitions="Auto,*" Margin="24,18,24,0">
-        <TextBlock Grid.Row="0" Classes="k" Text="komputery" Margin="0,0,0,12" />
+        <TextBlock Grid.Row="0" Classes="k" Text="computers" Margin="0,0,0,12" />
 
         <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoConnections}"
-                   Text="Nie masz jeszcze żadnego komputera. Na maszynie, którą chcesz sterować, uruchom link i wklej tutaj jej kod zaproszenia. Każdy komputer dostaje własny adres i własny token, więc prompt wygenerowany dla jednego nie sięga do pozostałych." />
+                   Text="No computers yet. On the machine you want to control, start the link and paste its invite code here. Each computer gets its own address and token, so a prompt made for one does not reach the others." />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasConnections}">
           <ItemsControl ItemsSource="{Binding Connections}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:ConnectionRow">
-                <!-- Wiersz listy, nie karta: stan niesie pionowy pasek przy lewej krawędzi -->
+                <!-- List row, not a card: the vertical bar on the left edge carries the status -->
                 <Grid ColumnDefinitions="2,18,*" Margin="0,0,0,2">
                   <Border Grid.Column="0" Background="{Binding StatusAccent}" CornerRadius="1"
                           Margin="0,10,0,10" />
@@ -67,17 +67,17 @@
                       <SelectableTextBlock Grid.Column="0" Text="{Binding AddressText}" FontSize="12"
                                            Foreground="{DynamicResource Link}" VerticalAlignment="Center" />
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Classes="primary" Content="Kopiuj prompt" Click="OnCopyPrompt"
+                        <Button Classes="primary" Content="Copy prompt" Click="OnCopyPrompt"
                                 IsEnabled="{Binding IsOpen}" />
                         <Button Classes="quiet" Content="{Binding ToggleText}" Click="OnToggle"
                                 IsEnabled="{Binding NotBusy}" />
                         <!-- Rzadkie akcje pod menu: zajmowaly tyle samo miejsca co te uzywane stale -->
-                        <Button Classes="quiet" Content="⋯" Width="34" ToolTip.Tip="Więcej">
+                        <Button Classes="quiet" Content="⋯" Width="34" ToolTip.Tip="More">
                           <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
-                              <MenuItem Header="Nowy token" Click="OnRotateToken"
+                              <MenuItem Header="New token" Click="OnRotateToken"
                                         IsEnabled="{Binding IsOpen}" />
-                              <MenuItem Header="Usuń komputer" Click="OnRemove" />
+                              <MenuItem Header="Remove computer" Click="OnRemove" />
                             </MenuFlyout>
                           </Button.Flyout>
                         </Button>
@@ -120,7 +120,7 @@
       </Border>
     </Grid>
 
-    <!-- Zasłona blokady: hub trzyma tokeny do cudzych maszyn -->
+    <!-- Lock overlay: the hub holds tokens to other machines -->
     <Border Classes="lock" IsVisible="{Binding Lock.IsLocked}">
       <Grid RowDefinitions="*,Auto,*" Margin="24,0">
         <StackPanel Grid.Row="1" Spacing="24" Width="320" HorizontalAlignment="Center">
@@ -131,13 +131,13 @@
 
           <StackPanel Spacing="12">
             <StackPanel Spacing="6">
-              <TextBlock Classes="k" Text="hasło" />
+              <TextBlock Classes="k" Text="password" />
               <TextBox Name="PasswordBox" PasswordChar="•" Text="{Binding Lock.Password}"
                        IsEnabled="{Binding Lock.CanSubmit}" KeyDown="OnLockKeyDown" />
             </StackPanel>
 
             <StackPanel Spacing="6" IsVisible="{Binding Lock.NeedsSetup}">
-              <TextBlock Classes="k" Text="powtórz hasło" />
+              <TextBlock Classes="k" Text="repeat password" />
               <TextBox PasswordChar="•" Text="{Binding Lock.Confirmation}" KeyDown="OnLockKeyDown" />
             </StackPanel>
           </StackPanel>
@@ -147,7 +147,7 @@
                     IsEnabled="{Binding Lock.CanSubmit}" Click="OnLockSubmit" />
             <TextBlock Classes="k" Height="14" IsVisible="{Binding Lock.HasPenalty}"
                        Foreground="{DynamicResource Warn}"
-                       Text="{Binding Lock.PenaltySeconds, StringFormat='kolejna próba za {0} s'}" />
+                       Text="{Binding Lock.PenaltySeconds, StringFormat='next try in {0} s'}" />
           </StackPanel>
         </StackPanel>
       </Grid>

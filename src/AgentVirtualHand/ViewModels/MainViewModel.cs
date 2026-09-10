@@ -34,7 +34,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _connectionText = "";
     private string _statusText = "Serwer zatrzymany";
     private IBrush _statusAccent = Brush.Parse("#8B95A7");
-    private string _hint = "Uruchom link, przekaż kod drugiej maszynie, potem otwórz dostęp.";
+    private string _hint = "Start the link, send the code to the other machine, then let it in.";
     private bool _settingsLoaded;
 
     public MainViewModel()
@@ -56,7 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _timer.Start();
 
         LoadSettings();
-        Log("app", $"AVH {AppInfo.Version} na {Environment.MachineName}");
+        Log("app", $"AVH {AppInfo.Version} on {Environment.MachineName}");
         Refresh();
     }
 
@@ -136,7 +136,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 (0, 0) => "nikt nie pracuje",
                 (0, _) => $"{waiting} czeka na wpuszczenie",
-                (_, 0) => working == 1 ? "1 maszyna pracuje" : $"{working} maszyny pracują",
+                (_, 0) => working == 1 ? "1 machine working" : $"{working} machines working",
                 _ => $"{working} pracuje, {waiting} czeka",
             };
         }
@@ -183,7 +183,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await _server.StopAsync();
             ConnectionText = "";
             ClipboardPayload = "";
-            Hint = "Link zatrzymany - maszyna jest odcieta.";
+            Hint = "Link stopped - machine is offline.";
         }
         else
         {
@@ -192,13 +192,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 await _server.StartAsync();
                 _link.LoopbackPort = _server.Port;
                 await _link.StartAsync(MaxMachines);
-                Hint = "Link dziala. Zapros maszyne, ktora ma tu pracowac.";
+                Hint = "Link running. Invite the machine that should work here.";
             }
             catch (Exception ex)
             {
                 var dump = DumpException("start linku", ex);
-                Log("deny", "Nie udalo sie wystartowac: " + ex.Message);
-                Hint = "Blad startu: " + ex.Message + (dump is null ? "" : $"  |  szczegoly w: {dump}");
+                Log("deny", "Could not start: " + ex.Message);
+                Hint = "Start error: " + ex.Message + (dump is null ? "" : $"  |  details in: {dump}");
             }
         }
 
@@ -221,8 +221,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var invitation = await _link.InviteAsync();
             ConnectionText = invitation.Code.Value;
             ClipboardPayload = invitation.Code.Value;
-            Hint = $"Kod wazny do {invitation.ExpiresAt.LocalDateTime:HH:mm}. "
-                 + $"Maszyna, ktora go uzyje, dostanie dostep na {DurationText}.";
+            Hint = $"Code valid until {invitation.ExpiresAt.LocalDateTime:HH:mm}. "
+                 + $"The machine that uses it gets access for {DurationText}.";
         }
         catch (Exception ex)
         {
@@ -240,37 +240,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void AdmitMachine(MachineRow machine)
     {
         var session = _sessions.Open(machine.Key, machine.Name);
-        Hint = $"{machine.Name} pracuje do {session.ExpiresAt:HH:mm}.";
+        Hint = $"{machine.Name} works until {session.ExpiresAt:HH:mm}.";
         Refresh();
     }
 
     public void ExtendAccess(MachineRow machine)
     {
         _sessions.Extend(machine.Key, TimeSpan.FromMinutes(DurationMinutes));
-        Hint = $"Dostep dla {machine.Name} przedluzony.";
+        Hint = $"Access for {machine.Name} extended.";
         Refresh();
     }
 
     public void RevokeAccess(MachineRow machine)
     {
         _sessions.Revoke(machine.Key, "odciete recznie z okna");
-        Hint = $"{machine.Name} stracila dostep. Pozostale maszyny pracuja dalej.";
+        Hint = $"{machine.Name} lost access. Other machines keep working.";
         Refresh();
     }
 
     /// <summary>Odcina wszystkie maszyny naraz - przycisk paniki.</summary>
     public void RevokeEveryone()
     {
-        _sessions.RevokeAll("odcięte ręcznie z okna");
+        _sessions.RevokeAll("cut off manually from the window");
         _shell.KillAll();
-        Hint = "Wszystkie maszyny odcięte. Link nadal działa - dostęp możesz otworzyć ponownie.";
+        Hint = "All machines cut off. The link still runs - you can grant access again.";
         Refresh();
     }
 
     public void NoteCopied()
     {
-        Hint = "Kod skopiowany. Wklej go w oknie huba albo podaj do avh-link join na drugiej maszynie.";
-        Log("app", "Kod zaproszenia skopiowany do schowka");
+        Hint = "Code copied. Paste it in the hub window or pass it to avh-link join on the other machine.";
+        Log("app", "Invite code copied to clipboard");
     }
 
     public void ShutdownBlocking()
@@ -279,7 +279,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         Task.Run(async () =>
         {
-            _sessions.RevokeAll("zamknięcie aplikacji");
+            _sessions.RevokeAll("application closing");
             await _server.StopAsync().ConfigureAwait(false);
         }).Wait(TimeSpan.FromSeconds(5));
     }
@@ -293,7 +293,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             (false, _) => ("Zatrzymany", "#8B95A7"),
             (true, 0) => ("Nikt nie pracuje", "#4C8DFF"),
             (true, 1) => ("1 maszyna pracuje", "#63D19B"),
-            (true, var n) => ($"{n} maszyny pracują", "#63D19B"),
+            (true, var n) => ($"{n} machines working", "#63D19B"),
         };
 
         StatusText = statusText;

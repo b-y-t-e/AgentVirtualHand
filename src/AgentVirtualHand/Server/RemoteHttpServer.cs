@@ -140,7 +140,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         api.MapPost("/session/end", (HttpContext ctx) =>
         {
             // Konczy dostep tylko tego klienta - pozostale maszyny pracuja dalej.
-            _sessions.Revoke(Caller(ctx)!.PeerKey, "zakończone przez klienta");
+            _sessions.Revoke(Caller(ctx)!.PeerKey, "ended by the client");
             return Results.Json(new { ended = true }, Json);
         });
 
@@ -267,7 +267,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
             else
                 await File.WriteAllTextAsync(full, request.Content ?? "", Utf8NoBom);
 
-            Audit?.Invoke("fs", "zapis " + full);
+            Audit?.Invoke("fs", "write " + full);
             return Results.Json(new { path = full, size = new FileInfo(full).Length }, Json);
         });
 
@@ -303,9 +303,9 @@ public sealed class RemoteHttpServer : IAsyncDisposable
             var full = Path.GetFullPath(request.Path);
             if (Directory.Exists(full)) Directory.Delete(full, recursive: request.Recursive ?? false);
             else if (File.Exists(full)) File.Delete(full);
-            else return Results.Json(new { error = "Ścieżka nie istnieje: " + full }, Json, statusCode: 404);
+            else return Results.Json(new { error = "Path does not exist: " + full }, Json, statusCode: 404);
 
-            Audit?.Invoke("fs", "usunięcie " + full);
+            Audit?.Invoke("fs", "delete " + full);
             return Results.Json(new { deleted = full }, Json);
         });
 
@@ -314,7 +314,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
             var (request, jsonError) = await ReadJsonAsync<MoveRequest>(ctx);
             if (jsonError is not null) return jsonError;
             if (string.IsNullOrWhiteSpace(request?.From) || string.IsNullOrWhiteSpace(request.To))
-                return Results.Json(new { error = "Pola 'from' i 'to' są wymagane." }, Json, statusCode: 400);
+                return Results.Json(new { error = "Fields 'from' and 'to' are required." }, Json, statusCode: 400);
 
             var from = Path.GetFullPath(request.From);
             var to = Path.GetFullPath(request.To);
@@ -323,7 +323,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
             if (Directory.Exists(from)) Directory.Move(from, to);
             else File.Move(from, to, overwrite: true);
 
-            Audit?.Invoke("fs", $"przeniesienie {from} -> {to}");
+            Audit?.Invoke("fs", $"move {from} -> {to}");
             return Results.Json(new { from, to }, Json);
         });
 
@@ -364,7 +364,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         if (_sessions.Validate(token) is not { } session)
         {
             Audit?.Invoke("deny", $"401 {http.Request.Method} {http.Request.Path}");
-            return Results.Json(new { error = "Brak ważnego dostępu. Poproś właściciela maszyny o otwarcie dostępu." },
+            return Results.Json(new { error = "No valid access. Ask the machine owner to grant access." },
                 Json, statusCode: StatusCodes.Status401Unauthorized);
         }
 
@@ -385,7 +385,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         catch (JsonException ex)
         {
             return (default, Results.Json(
-                new { error = "Nieprawidłowy JSON w body: " + ex.Message + " (pamiętaj o podwójnych backslashach w ścieżkach Windows)." },
+                new { error = "Invalid JSON in body: " + ex.Message + " (remember to double backslashes in Windows paths)." },
                 Json, statusCode: 400));
         }
     }

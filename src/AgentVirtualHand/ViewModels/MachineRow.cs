@@ -24,9 +24,9 @@ public sealed class MachineRow(PeerInfo peer, RemoteSession? session, TimeSpan? 
 
     public string StatusText => (HasAccess, _peer.IsConnected) switch
     {
-        (true, true) => "pracuje",
-        (true, false) => "rozłączona",
-        _ => "czeka na wpuszczenie",
+        (true, true) => "working",
+        (true, false) => "disconnected",
+        _ => "waiting to be let in",
     };
 
     public IBrush StatusAccent => Brush.Parse((HasAccess, _peer.IsConnected) switch
@@ -39,9 +39,9 @@ public sealed class MachineRow(PeerInfo peer, RemoteSession? session, TimeSpan? 
     /// <summary>Ile zostało do końca dostępu - jedyna liczba, która się tu liczy.</summary>
     public string DetailText => (_session, _remaining) switch
     {
-        (not null, { } left) => $"zostało {(int)left.TotalHours:00}:{left.Minutes:00}:{left.Seconds:00}  ·  do {_session.ExpiresAt:HH:mm}",
-        (not null, null) => $"do {_session.ExpiresAt:HH:mm}",
-        _ => "sparowana wcześniej, dostęp wygasł",
+        (not null, { } left) => $"{(int)left.TotalHours:00}:{left.Minutes:00}:{left.Seconds:00} left  ·  until {_session.ExpiresAt:HH:mm}",
+        (not null, null) => $"until {_session.ExpiresAt:HH:mm}",
+        _ => "paired earlier, access expired",
     };
 
     /// <summary>Odświeża wiersz w miejscu, żeby lista nie mrugała co sekundę.</summary>
