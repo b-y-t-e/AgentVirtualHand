@@ -160,7 +160,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => Set(ref _hint, value);
     }
 
-    /// <summary>Pełna instrukcja do wklejenia w Claude Code - budowana przy parowaniu.</summary>
+    /// <summary>
+    /// To, co faktycznie trzeba przeniesć na druga maszyne: sam kod zaproszenia.
+    /// Instrukcja dla modelu powstaje po stronie klienta - hub buduje ja dla konkretnej
+    /// maszyny wraz z jej adresem i tokenem, a avh-link ma wlasne --help.
+    /// </summary>
     public string ClipboardPayload { get; private set; } = "";
 
     public async Task ToggleServerAsync()
@@ -287,7 +291,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         QrImage = QrGenerator.Create(code);
         ConnectionText = code;
-        ClipboardPayload = BuildPayload(code);
+        ClipboardPayload = code;
     }
 
     /// <summary>Odcina wszystkie maszyny naraz - przycisk paniki.</summary>
@@ -301,8 +305,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void NoteCopied()
     {
-        Hint = "Dane skopiowane do schowka - wklej je w Claude Code na drugiej maszynie.";
-        Log("app", "Dane połączenia skopiowane do schowka");
+        Hint = "Kod skopiowany. Wklej go w oknie huba albo podaj do avh-link join na drugiej maszynie.";
+        Log("app", "Kod zaproszenia skopiowany do schowka");
     }
 
     public void ShutdownBlocking()
@@ -366,22 +370,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             else existing.Update(peer, session, remaining);
         }
     }
-
-    private string BuildPayload(string code) => $$"""
-        AVH = zdalna powloka+pliki na {{Environment.MachineName}} przez Tailcat.Link (bez adresow IP i portow).
-        Dzialasz na koncie wlasciciela; operacje destrukcyjne najpierw potwierdz.
-        POLACZENIE (raz, kod jednorazowy wazny 15 min): avh-link join {{code}}
-        Potem kod nie jest juz potrzebny - klient pamieta sparowanie. Sprawdz: avh-link status
-        EXEC: avh-link exec "<polecenie>" [--cwd <sciezka>] [--timeout <sekundy>] -> exitCode/stdout/stderr
-        BG (dlugie operacje: instalacje, kompilacje): avh-link bg start "<polecenie>" -> id
-             avh-link bg out <id> [--out-offset N] [--err-offset N] | avh-link bg stdin <id> "<tekst>" | avh-link bg kill <id>
-        PLIKI: avh-link fs list <sciezka> | fs read <sciezka> [--max-bytes N] | fs download <zdalna> <lokalna>
-             fs write <sciezka> --text "<tresc>" [--append] | fs upload <lokalna> <zdalna>
-             fs mkdir <sciezka> | fs delete <sciezka> [--recursive] | fs move <z> <do>
-        RESZTA: avh-link system (os, shell, dyski, home) | avh-link session (pozostaly czas) | avh-link --help
-        NOTY: sciezki Windows pisz z ukosnikiem / albo podwojnym backslashem; dostep wygasa po {{DurationText}}
-        -> 401 (popros wlasciciela o ponowne otwarcie dostepu); koniec pracy: avh-link session end.
-        """;
 
     /// <summary>
     /// Zapisuje pełny wyjątek (ze stosem i wyjątkami wewnętrznymi) obok pliku .exe.
