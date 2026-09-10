@@ -34,6 +34,10 @@ public static class HelpText
         Odpowiedz: `exitCode`, `stdout`, `stderr`, `timedOut`, `durationMs`.
         `shell`: `powershell` | `pwsh` | `cmd` | `bash` | `sh` (domyślnie zależy od systemu).
 
+        WAŻNE: `command` to string w JSON, więc każdy backslash musi być podwojony.
+        Nazwa instancji `SERWER\INSTANCJA`, ścieżka `C:\Temp` - w JSON pisz `SERWER\\INSTANCJA`
+        i `C:\\Temp` albo używaj `/`. Pojedynczy `\` psuje JSON i dostajesz błąd parsowania.
+
         Długie operacje (instalacje, kompilacje, uruchomione serwisy):
         - `POST /api/exec/start` - te same pola, zwraca `{ "id": "..." }`
         - `GET  /api/exec/{id}?outOffset=0&errOffset=0` - przyrostowy output; przekaż zwrócone

@@ -21,7 +21,7 @@
                    Text="{Binding MachineName}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{Binding Lock.LockCountdownText}"
                    IsVisible="{Binding Lock.ShowLockCountdown}" FontSize="12"
-                   Foreground="{DynamicResource Warn}" HorizontalAlignment="Right"
+                   Foreground="{Binding Lock.LockCountdownAccent}" HorizontalAlignment="Right"
                    Margin="0,0,16,0" VerticalAlignment="Center" />
         <Ellipse Grid.Column="3" Width="6" Height="6" Fill="{Binding StatusAccent}"
                  VerticalAlignment="Center" />

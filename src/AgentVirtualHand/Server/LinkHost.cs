@@ -62,6 +62,7 @@ public sealed class LinkHost : IAsyncDisposable
         {
             PairingWindow = InvitationLifetime,
             MaxPeers = maxPeers,
+            Store = new HiddenLinkStore(),
             Log = message => Audit?.Invoke("link", message),
         };
 

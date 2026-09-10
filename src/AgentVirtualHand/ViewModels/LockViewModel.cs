@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AgentVirtualHand.Services;
+using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace AgentVirtualHand.ViewModels;
@@ -112,12 +113,25 @@ public sealed class LockViewModel : INotifyPropertyChanged
             if (!Set(ref _secondsUntilLock, value)) return;
             OnPropertyChanged(nameof(ShowLockCountdown));
             OnPropertyChanged(nameof(LockCountdownText));
+            OnPropertyChanged(nameof(LockCountdownAccent));
         }
     }
 
-    public bool ShowLockCountdown => !IsLocked && SecondsUntilLock is > 0 and <= 60;
+    /// <summary>Licznik widoczny przez caly czas, gdy okno jest odblokowane.</summary>
+    public bool ShowLockCountdown => !IsLocked;
 
-    public string LockCountdownText => $"blokada za {SecondsUntilLock} s";
+    public string LockCountdownText
+    {
+        get
+        {
+            var s = SecondsUntilLock;
+            return s >= 60 ? $"blokada za {s / 60}:{s % 60:00}" : $"blokada za {s} s";
+        }
+    }
+
+    /// <summary>Wyciszony przez wiekszosc czasu, ostrzegawczy w ostatnich sekundach.</summary>
+    public IBrush LockCountdownAccent =>
+        Brush.Parse(SecondsUntilLock <= LockWarningSeconds ? "#FFB454" : "#5C6474");
 
     /// <summary>Ruch myszą albo klawisz - liczy się jako obecność przy komputerze.</summary>
     public void NoteActivity() => _lastActivity = _clock.GetUtcNow();
@@ -150,7 +164,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
             Message = "";
             NoteActivity();
             IsLocked = false;
-            SecondsUntilLock = 0;
+            SecondsUntilLock = (int)IdleTimeout.TotalSeconds;
             return;
         }
 
@@ -187,6 +201,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
 
         NoteActivity();
         IsLocked = false;
+        SecondsUntilLock = (int)IdleTimeout.TotalSeconds;
     }
 
     /// <summary>Krok zegara: odlicza karę i pilnuje bezczynności. Woła go zegar okna co sekundę.</summary>
@@ -222,7 +237,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
         }
 
         var untilLock = (int)Math.Ceiling((IdleTimeout - idle).TotalSeconds);
-        SecondsUntilLock = untilLock <= LockWarningSeconds ? untilLock : 0;
+        SecondsUntilLock = Math.Max(untilLock, 0);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

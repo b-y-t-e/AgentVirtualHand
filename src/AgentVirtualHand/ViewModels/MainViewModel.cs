@@ -352,7 +352,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             var dir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
-            var file = Path.Combine(dir, "AgentVirtualHand-blad.log");
+            var file = Path.Combine(dir, "avh-blad.log");
 
             var sb = new StringBuilder();
             sb.AppendLine(new string('=', 70));
