@@ -4,10 +4,14 @@ using Tailcat.Link;
 
 namespace AgentVirtualHand.Server;
 
+/// <summary>Maszyna kliencka widziana przez hosta: tożsamość z linku plus stan połączenia.</summary>
+public sealed record PeerInfo(string Key, string Name, bool IsConnected, DateTimeOffset PairedAt);
+
 /// <summary>
 /// Wystawia maszynę przez Tailcat.Link zamiast bezpośredniego połączenia po IP.
-/// Żądania z linku trafiają do lokalnego serwera HTTP na 127.0.0.1 - dzięki temu
-/// cała logika API (exec, pliki, sesje) zostaje jedna, a link jest tylko transportem.
+/// Obsługuje wielu klientów naraz - każdy ma własne okno dostępu, więc odcięcie
+/// jednego nie rusza pozostałych. Żądania trafiają do lokalnego serwera HTTP na
+/// 127.0.0.1, dzięki czemu cała logika API zostaje jedna, a link jest tylko transportem.
 /// </summary>
 public sealed class LinkHost : IAsyncDisposable
 {
@@ -16,93 +20,113 @@ public sealed class LinkHost : IAsyncDisposable
     private readonly SessionManager _sessions;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
-    private ILink? _link;
+    private ILinkHost? _host;
 
     public LinkHost(SessionManager sessions) => _sessions = sessions;
 
     public event Action<string, string>? Audit;
     public event Action? Changed;
 
-    public bool IsHosting => _link is not null;
-    public bool IsConnected => _link?.IsConnected ?? false;
+    /// <summary>Maszyna wlasnie sie polaczyla - tryb bez okna otwiera jej dostep od razu.</summary>
+    public event Action<PeerInfo>? PeerJoined;
+
+    public bool IsHosting => _host is not null;
 
     /// <summary>Kod, który wpisuje się raz po drugiej stronie: avh-link join &lt;kod&gt;.</summary>
-    public string InvitationCode => _link?.InvitationCode.Value ?? "";
+    public string InvitationCode => _host?.InvitationCode.Value ?? "";
 
-    public DateTimeOffset? InvitationExpiresAt => _link?.InvitationExpiresAt;
+    public DateTimeOffset? InvitationExpiresAt => _host?.InvitationExpiresAt;
+
+    /// <summary>Ile maszyn może być sparowanych jednocześnie - limit biblioteki.</summary>
+    public int MaxPeers => _host?.MaxPeers ?? 0;
 
     /// <summary>Port lokalnego serwera HTTP, do którego przekazujemy żądania z linku.</summary>
     public int LoopbackPort { get; set; } = 8787;
 
-    public async Task StartAsync(TimeSpan pairingWindow)
+    public IReadOnlyList<PeerInfo> Peers => _host is null
+        ? []
+        : _host.Peers.Select(Describe).ToList();
+
+    public async Task StartAsync(TimeSpan pairingWindow, int maxPeers)
     {
-        if (_link is not null) throw new InvalidOperationException("Link już działa.");
+        if (_host is not null) throw new InvalidOperationException("Link już działa.");
 
         var options = new LinkOptions
         {
             PairingWindow = pairingWindow,
+            MaxPeers = maxPeers,
             Log = message => Audit?.Invoke("link", message),
         };
 
-        var link = await TailcatLink.HostAsync(AppName, options).ConfigureAwait(false);
-        link.OnRequest(HandleAsync);
-        link.Connected += () =>
+        var host = await TailcatLink.HostManyAsync(AppName, options).ConfigureAwait(false);
+        host.SetRequestHandler(HandleAsync);
+
+        host.PeerJoined += (_, e) =>
         {
-            Audit?.Invoke("link", "Druga maszyna połączona");
+            Audit?.Invoke("link", $"{Name(e.Peer)}: połączona");
+            PeerJoined?.Invoke(Describe(e.Peer));
             Changed?.Invoke();
         };
-        link.Disconnected += reason =>
+        host.PeerLeft += (_, e) =>
         {
-            Audit?.Invoke("link", $"Rozłączono: {reason}");
+            Audit?.Invoke("link", $"{Name(e.Peer)}: rozłączona ({e.Reason})");
             Changed?.Invoke();
         };
 
-        _link = link;
+        _host = host;
 
         // Stan sparowania przezywa restart razem z kodem zaproszenia - a ten zdazyl juz wygasnac.
         // Bez odswiezenia okno pokazywaloby martwy kod, ktorego nikt nie zdola uzyc.
-        if (link.InvitationExpiresAt is null || link.InvitationExpiresAt <= DateTimeOffset.Now)
-            await link.RenewInvitationAsync().ConfigureAwait(false);
+        if (host.InvitationExpiresAt is null || host.InvitationExpiresAt <= DateTimeOffset.Now)
+            await host.InviteAsync(new InvitationRequest { SingleUse = true, Lifetime = pairingWindow })
+                .ConfigureAwait(false);
 
-        Audit?.Invoke("link", $"Link gotowy, kod zaproszenia ważny do {link.InvitationExpiresAt?.LocalDateTime:HH:mm:ss}");
+        Audit?.Invoke("link", $"Link gotowy dla {host.Peers.Count} sparowanych maszyn, "
+                            + $"kod ważny do {host.InvitationExpiresAt?.LocalDateTime:HH:mm:ss}");
         Changed?.Invoke();
     }
-
-    /// <summary>Nowy kod zaproszenia - stary przestaje działać.</summary>
-    public async Task<string> RenewInvitationAsync()
-    {
-        if (_link is null) throw new InvalidOperationException("Link nie działa.");
-
-        var code = await _link.RenewInvitationAsync().ConfigureAwait(false);
-        Audit?.Invoke("link", "Wygenerowano nowy kod zaproszenia");
-        Changed?.Invoke();
-        return code.Value;
-    }
-
-    /// <summary>Czy jakaś maszyna jest już sparowana z tym hostem.</summary>
-    public bool HasPeer => _link?.Peer.ToString() is { Length: > 0 };
 
     /// <summary>
-    /// Odpina dotychczasowego klienta i buduje nową tożsamość węzła.
-    /// Host trzyma dokładnie jedną sparowaną maszynę, więc wpuszczenie innej wymaga
-    /// zapomnienia poprzedniej - dotychczasowy klient przestaje się łączyć.
+    /// Nowe zaproszenie dla kolejnej maszyny. Jednorazowe, więc jeden kod wpuszcza jedną maszynę
+    /// i nie da się go użyć powtórnie, gdy trafi w niepowołane ręce.
     /// </summary>
-    public async Task ResetPeerAsync(TimeSpan pairingWindow)
+    public async Task<LinkInvitation> InviteAsync(TimeSpan lifetime, string? label = null)
     {
-        await StopAsync().ConfigureAwait(false);
-        await TailcatLink.ForgetAsync(AppName).ConfigureAwait(false);
+        if (_host is null) throw new InvalidOperationException("Link nie działa.");
 
-        Audit?.Invoke("link", "Odpięto poprzednią maszynę - potrzebne nowe sparowanie");
-        await StartAsync(pairingWindow).ConfigureAwait(false);
+        var invitation = await _host.InviteAsync(new InvitationRequest
+        {
+            Label = label ?? "",
+            Lifetime = lifetime,
+            SingleUse = true,
+        }).ConfigureAwait(false);
+
+        Audit?.Invoke("link", $"Nowy kod zaproszenia, ważny do {invitation.ExpiresAt.LocalDateTime:HH:mm:ss}");
+        Changed?.Invoke();
+        return invitation;
+    }
+
+    /// <summary>Odpina maszynę: traci dostęp i przy powrocie musi dostać nowy kod.</summary>
+    public async Task ForgetPeerAsync(string peerKey)
+    {
+        if (_host is null) return;
+        if (_host.Peers.FirstOrDefault(p => p.Key.ToString() == peerKey) is not { } peer) return;
+
+        _sessions.Revoke(peerKey, "maszyna odpięta");
+        await _host.ForgetPeerAsync(peer).ConfigureAwait(false);
+
+        Audit?.Invoke("link", $"{Name(peer)}: odpięta, powrót wymaga nowego kodu");
+        Changed?.Invoke();
     }
 
     public async Task StopAsync()
     {
-        if (_link is null) return;
+        if (_host is null) return;
 
-        var link = _link;
-        _link = null;
-        await link.DisposeAsync().ConfigureAwait(false);
+        var host = _host;
+        _host = null;
+        await host.DisposeAsync().ConfigureAwait(false);
+
         Audit?.Invoke("link", "Link zatrzymany");
         Changed?.Invoke();
     }
@@ -114,10 +138,10 @@ public sealed class LinkHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sparowanie na poziomie Tailcata potwierdza tożsamość maszyny, ale nie wystarcza:
-    /// dostęp musi być otwarty w oknie aplikacji i wygasa razem z sesją.
+    /// Sparowanie potwierdza tożsamość maszyny, ale nie wystarcza: dostęp musi być
+    /// otwarty w oknie aplikacji, osobno dla każdej maszyny, i wygasa razem z sesją.
     /// </summary>
-    private async Task<ReadOnlyMemory<byte>> HandleAsync(ReadOnlyMemory<byte> request, CancellationToken ct)
+    private async Task<ReadOnlyMemory<byte>> HandleAsync(ILinkPeer peer, ReadOnlyMemory<byte> request, CancellationToken ct)
     {
         LinkRequest call;
         try
@@ -129,10 +153,10 @@ public sealed class LinkHost : IAsyncDisposable
             return LinkCodec.Encode(LinkResponse.Error(400, $"Niepoprawna koperta: {ex.Message}"));
         }
 
-        var session = _sessions.Session;
+        var session = _sessions.ForPeer(peer.Key.ToString());
         if (session is null)
             return LinkCodec.Encode(LinkResponse.Error(401,
-                "Dostęp zamknięty - otwórz go w oknie AgentVirtualHand na maszynie zdalnej."));
+                "Dostęp zamknięty - właściciel maszyny musi go otworzyć w oknie AgentVirtualHand."));
 
         try
         {
@@ -141,7 +165,7 @@ public sealed class LinkHost : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Audit?.Invoke("deny", $"Błąd obsługi żądania z linku: {ex.Message}");
+            Audit?.Invoke("deny", $"{Name(peer)}: błąd obsługi żądania - {ex.Message}");
             return LinkCodec.Encode(LinkResponse.Error(500, ex.Message));
         }
     }
@@ -183,4 +207,10 @@ public sealed class LinkHost : IAsyncDisposable
             BodyBase64 = isText ? null : Convert.ToBase64String(bytes),
         };
     }
+
+    private static PeerInfo Describe(ILinkPeer peer) =>
+        new(peer.Key.ToString(), Name(peer), peer.IsConnected, peer.PairedAt);
+
+    private static string Name(ILinkPeer peer) =>
+        string.IsNullOrWhiteSpace(peer.Name) ? "nieznana maszyna" : peer.Name;
 }

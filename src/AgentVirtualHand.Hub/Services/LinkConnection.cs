@@ -70,8 +70,11 @@ public sealed class LinkConnection : IAsyncDisposable
             Log = message => Audit?.Invoke("link", $"{Entry.Name}: {message}"),
         };
 
+        // Nazwa trafia na liste maszyn po stronie hosta, wiec wlasciciel widzi, kto sie dobija.
+        var request = new JoinRequest { DisplayName = $"{Environment.MachineName} (hub)" };
+
         var link = invitationCode is { Length: > 0 }
-            ? await TailcatLink.JoinAsync(AppName, invitationCode, options).ConfigureAwait(false)
+            ? await TailcatLink.JoinAsync(AppName, invitationCode, request, options).ConfigureAwait(false)
             : await TailcatLink.JoinAsync(AppName, options: options).ConfigureAwait(false);
 
         link.Connected += () =>

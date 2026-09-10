@@ -56,18 +56,15 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 await Model.ToggleServerAsync();
                 break;
-            case Key.P when Model.CanPair:
+            case Key.P when Model.IsRunning:
                 e.Handled = true;
-                Model.OpenAccess();
+                await Model.NewInvitationAsync();
                 break;
             case Key.D when Model.HasInvitation:
                 e.Handled = true;
                 OnCopy(sender, new RoutedEventArgs());
                 break;
-            case Key.N when Model.IsRunning:
-                e.Handled = true;
-                await Model.NewInvitationAsync();
-                break;
+
         }
     }
 
@@ -81,7 +78,26 @@ public partial class MainWindow : Window
         await Model.ToggleServerAsync();
     }
 
-    private void OnOpenAccess(object? sender, RoutedEventArgs e) => Model?.OpenAccess();
+    /// <summary>Przyciski siedza w szablonie wiersza, wiec maszyne bierzemy z jego kontekstu.</summary>
+    private static MachineRow? RowOf(object? sender) => (sender as Control)?.DataContext as MachineRow;
+
+    private void OnToggleAccess(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null || RowOf(sender) is not { } machine) return;
+        Model.ToggleAccess(machine);
+    }
+
+    private void OnRevokeAccess(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null || RowOf(sender) is not { } machine) return;
+        Model.RevokeAccess(machine);
+    }
+
+    private async void OnForgetMachine(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null || RowOf(sender) is not { } machine) return;
+        await Model.ForgetMachineAsync(machine);
+    }
 
     private async void OnNewInvitation(object? sender, RoutedEventArgs e)
     {
@@ -89,15 +105,7 @@ public partial class MainWindow : Window
         await Model.NewInvitationAsync();
     }
 
-    private async void OnResetPeer(object? sender, RoutedEventArgs e)
-    {
-        if (Model is null) return;
-        await Model.ResetPeerAsync();
-    }
-
-    private void OnEndSession(object? sender, RoutedEventArgs e) => Model?.EndSession();
-
-    private void OnExtend(object? sender, RoutedEventArgs e) => Model?.ExtendSession();
+    private void OnRevokeEveryone(object? sender, RoutedEventArgs e) => Model?.RevokeEveryone();
 
     private async void OnCopy(object? sender, RoutedEventArgs e)
     {

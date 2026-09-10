@@ -46,7 +46,8 @@ public static class Program
     /// <summary>Pierwsze połączenie - jedyny moment, w którym kod zaproszenia jest potrzebny.</summary>
     private static async Task<int> JoinAsync(string code, string[] args)
     {
-        await using var link = await TailcatLink.JoinAsync(AppName, code, Options(args));
+        var request = new JoinRequest { DisplayName = $"{Environment.MachineName} (avh-link)" };
+        await using var link = await TailcatLink.JoinAsync(AppName, code, request, Options(args));
         await link.WaitUntilConnectedAsync(Deadline(TimeSpan.FromSeconds(60)));
 
         Console.WriteLine("Sparowano. Kod nie będzie już potrzebny - spróbuj: avh-link system");

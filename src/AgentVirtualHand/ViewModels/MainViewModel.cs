@@ -34,13 +34,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private string _port = "8787";
     private int _durationMinutes = 60;
-    private string _pairCode = "";
     private Bitmap? _qrImage;
     private string _connectionText = "";
     private string _statusText = "Serwer zatrzymany";
     private IBrush _statusAccent = Brush.Parse("#8B95A7");
-    private string _remainingText = "";
-    private string _clientText = "";
     private string _hint = "Uruchom link, przekaż kod drugiej maszynie, potem otwórz dostęp.";
     private bool _settingsLoaded;
 
@@ -64,6 +61,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<LogEntry> Logs { get; } = [];
+
+    /// <summary>Sparowane maszyny. Kazda ma wlasne okno dostepu i wlasny token.</summary>
+    public ObservableCollection<MachineRow> Machines { get; } = [];
 
     /// <summary>Blokada okna hasłem - pierwsze uruchomienie wymusza jego ustawienie.</summary>
     public LockViewModel Lock { get; } = new(Path.Combine(
@@ -117,29 +117,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool IsRunning => _server.IsRunning;
     public string ServerButtonText => IsRunning ? "Zatrzymaj link" : "Uruchom link";
-    public bool CanPair => IsRunning && _sessions.State != AccessState.Active;
-    public bool HasSession => _sessions.State == AccessState.Active;
     /// <summary>Kod zaproszenia do wpisania raz po drugiej stronie: avh-link join &lt;kod&gt;.</summary>
     public string InvitationCode => _link.InvitationCode;
 
-    public bool HasInvitation => InvitationCode.Length > 0;
+    public bool HasInvitation => IsRunning && InvitationCode.Length > 0;
 
-    /// <summary>Link działa, ale dostęp nie jest jeszcze otwarty.</summary>
-    public bool ShowPairPrompt => IsRunning && !HasSession;
+    public bool HasMachines => Machines.Count > 0;
+    public bool HasNoMachines => IsRunning && Machines.Count == 0;
 
-    public bool LinkConnected => _link.IsConnected;
-
-    public string PeerText => _link.IsConnected ? "połączona" : "czeka na drugą maszynę";
-
-    public string PairCode
-    {
-        get => _pairCode;
-        private set
-        {
-            if (!Set(ref _pairCode, value)) return;
-            OnPropertyChanged(nameof(ShowPairPrompt));
-        }
-    }
+    /// <summary>Podsumowanie w pasku: ile maszyn faktycznie pracuje.</summary>
+    public string MachinesSummary => Machines.Count == 0
+        ? "brak sparowanych maszyn"
+        : $"{Machines.Count(m => m.HasAccess)} z {Machines.Count} z dostepem";
 
     public Bitmap? QrImage
     {
@@ -165,18 +154,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => Set(ref _statusAccent, value);
     }
 
-    public string RemainingText
-    {
-        get => _remainingText;
-        private set => Set(ref _remainingText, value);
-    }
-
-    public string ClientText
-    {
-        get => _clientText;
-        private set => Set(ref _clientText, value);
-    }
-
     public string Hint
     {
         get => _hint;
@@ -190,10 +167,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (_server.IsRunning)
         {
-            _sessions.Revoke("link zatrzymany");
+            _sessions.RevokeAll("link zatrzymany");
+            _shell.KillAll();
             await _link.StopAsync();
             await _server.StopAsync();
-            PairCode = "";
             QrImage = null;
             ConnectionText = "";
             Hint = "Link zatrzymany - maszyna jest odcięta.";
@@ -213,7 +190,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 await _server.StartAsync(new ServerOptions(port));
                 _link.LoopbackPort = port;
-                await _link.StartAsync(InvitationWindow);
+                await _link.StartAsync(InvitationWindow, MaxMachines);
                 RebuildInvitationArtifacts();
                 Hint = "Link działa. Przekaż kod drugiej maszynie, potem otwórz dostęp.";
             }
@@ -232,18 +209,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Kod zaproszenia jest jednorazowy - po sparowaniu druga maszyna wraca bez niego.</summary>
     public static TimeSpan InvitationWindow => TimeSpan.FromMinutes(15);
 
-    /// <summary>
-    /// Otwiera okno dostępu. Sparowanie linku potwierdza tożsamość maszyny,
-    /// ale wpuszczenie jej jest osobną decyzją i wygasa razem z sesją.
-    /// </summary>
-    public void OpenAccess()
-    {
-        if (!CanPair) return;
+    /// <summary>Ile maszyn moze byc sparowanych naraz.</summary>
+    public const int MaxMachines = 16;
 
+    /// <summary>
+    /// Otwiera albo przedluza okno dostepu dla jednej maszyny. Sparowanie potwierdza
+    /// tozsamosc, ale wpuszczenie jest osobna decyzja i wygasa samo.
+    /// </summary>
+    public void ToggleAccess(MachineRow machine)
+    {
+        if (machine.HasAccess)
+        {
+            _sessions.Extend(machine.Key, TimeSpan.FromMinutes(DurationMinutes));
+            Hint = $"Dostep dla {machine.Name} przedluzony.";
+        }
+        else
+        {
+            var session = _sessions.Open(machine.Key, machine.Name);
+            Hint = $"{machine.Name} ma dostep do {session.ExpiresAt:HH:mm}. Skopiuj instrukcje i wklej ja w Claude Code.";
+        }
+
+        Refresh();
+    }
+
+    public void RevokeAccess(MachineRow machine)
+    {
+        _sessions.Revoke(machine.Key, "odciete recznie z okna");
+        Hint = $"{machine.Name} stracila dostep. Pozostale maszyny pracuja dalej.";
+        Refresh();
+    }
+
+    /// <summary>Odpina maszyne na stale - powrot wymaga nowego kodu zaproszenia.</summary>
+    public async Task ForgetMachineAsync(MachineRow machine)
+    {
         try
         {
-            var session = _sessions.OpenForLink("avh-link");
-            Hint = $"Dostęp otwarty do {session.ExpiresAt:HH:mm}. Skopiuj instrukcję i wklej ją w Claude Code.";
+            await _link.ForgetPeerAsync(machine.Key);
+            Hint = $"{machine.Name} odpieta. Zeby wrocila, przekaz jej nowy kod.";
         }
         catch (Exception ex)
         {
@@ -253,36 +255,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Refresh();
     }
 
-    /// <summary>Nowy kod zaproszenia - stary przestaje wpuszczać kogokolwiek.</summary>
+    /// <summary>Nowy kod zaproszenia dla kolejnej maszyny. Jednorazowy, poprzedni traci waznosc.</summary>
     public async Task NewInvitationAsync()
     {
         if (!IsRunning) return;
 
         try
         {
-            await _link.RenewInvitationAsync();
+            await _link.InviteAsync(InvitationWindow);
             RebuildInvitationArtifacts();
-            Hint = "Nowy kod zaproszenia. Stary już nie zadziała.";
-        }
-        catch (Exception ex)
-        {
-            Hint = ex.Message;
-        }
-
-        Refresh();
-    }
-
-    /// <summary>Host trzyma jedną sparowaną maszynę - żeby wpuścić inną, trzeba odpiąć poprzednią.</summary>
-    public async Task ResetPeerAsync()
-    {
-        if (!IsRunning) return;
-
-        try
-        {
-            _sessions.Revoke("odpięcie maszyny klienta");
-            await _link.ResetPeerAsync(InvitationWindow);
-            RebuildInvitationArtifacts();
-            Hint = "Poprzednia maszyna odpięta. Przekaż nowy kod tej, którą chcesz wpuścić.";
+            Hint = "Nowy kod zaproszenia. Wpuszcza jedna maszyne i traci waznosc po uzyciu.";
         }
         catch (Exception ex)
         {
@@ -308,17 +290,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ClipboardPayload = BuildPayload(code);
     }
 
-    public void EndSession()
+    /// <summary>Odcina wszystkie maszyny naraz - przycisk paniki.</summary>
+    public void RevokeEveryone()
     {
-        _sessions.Revoke("przerwane ręcznie z GUI");
+        _sessions.RevokeAll("odcięte ręcznie z okna");
         _shell.KillAll();
-        Hint = "Dostęp odcięty. Link nadal działa - możesz otworzyć dostęp ponownie.";
-        Refresh();
-    }
-
-    public void ExtendSession()
-    {
-        _sessions.Extend(TimeSpan.FromMinutes(DurationMinutes));
+        Hint = "Wszystkie maszyny odcięte. Link nadal działa - dostęp możesz otworzyć ponownie.";
         Refresh();
     }
 
@@ -334,54 +311,60 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         Task.Run(async () =>
         {
-            _sessions.Revoke("zamknięcie aplikacji");
+            _sessions.RevokeAll("zamknięcie aplikacji");
             await _server.StopAsync().ConfigureAwait(false);
         }).Wait(TimeSpan.FromSeconds(5));
     }
 
     private void Refresh()
     {
-        var state = _sessions.State;
+        SyncMachines();
 
-        var (statusText, statusAccent) = (IsRunning, state) switch
+        var working = Machines.Count(m => m.HasAccess);
+
+        var (statusText, statusAccent) = (IsRunning, working, Machines.Count) switch
         {
-            (false, _) => ("Zatrzymany", "#8B95A7"),
-            (true, AccessState.Active) => ("Sesja aktywna", "#63D19B"),
-            (true, AccessState.Pairing) => ("Parowanie otwarte", "#FFB454"),
-            _ => ("Nasluchuje - zablokowany", "#4C8DFF")
+            (false, _, _) => ("Zatrzymany", "#8B95A7"),
+            (true, 0, 0) => ("Czeka na maszyny", "#4C8DFF"),
+            (true, 0, _) => ("Nikt nie ma dost\u0119pu", "#FFB454"),
+            _ => (working == 1 ? "1 maszyna pracuje" : $"{working} maszyny pracuj\u0105", "#63D19B"),
         };
 
         StatusText = statusText;
         StatusAccent = Brush.Parse(statusAccent);
 
-        var session = _sessions.Session;
-        if (session is not null)
-        {
-            var left = _sessions.Remaining ?? TimeSpan.Zero;
-            RemainingText = $"{(int)left.TotalHours:00}:{left.Minutes:00}:{left.Seconds:00}";
-            ClientText = $"{session.ClientName} @ {session.ClientAddress} - {session.RequestCount} żądań";
-        }
-        else
-        {
-            RemainingText = "";
-            ClientText = "";
-            if (state != AccessState.Pairing && PairCode.Length > 0)
-            {
-                PairCode = "";
-                QrImage = null;
-                ConnectionText = "";
-            }
-        }
-
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(InvitationCode));
         OnPropertyChanged(nameof(HasInvitation));
-        OnPropertyChanged(nameof(LinkConnected));
-        OnPropertyChanged(nameof(PeerText));
         OnPropertyChanged(nameof(ServerButtonText));
-        OnPropertyChanged(nameof(CanPair));
-        OnPropertyChanged(nameof(HasSession));
-        OnPropertyChanged(nameof(ShowPairPrompt));
+        OnPropertyChanged(nameof(HasMachines));
+        OnPropertyChanged(nameof(HasNoMachines));
+        OnPropertyChanged(nameof(MachinesSummary));
+    }
+
+    /// <summary>
+    /// Uzgadnia liste maszyn ze stanem linku i sesji. Istniejace wiersze sa aktualizowane
+    /// w miejscu, zeby lista nie mrugala co sekunde przy odswiezaniu zegara.
+    /// </summary>
+    private void SyncMachines()
+    {
+        var peers = _link.Peers;
+
+        for (var i = Machines.Count - 1; i >= 0; i--)
+        {
+            if (peers.Any(peer => peer.Key == Machines[i].Key)) continue;
+            Machines.RemoveAt(i);
+        }
+
+        foreach (var peer in peers)
+        {
+            var session = _sessions.ForPeer(peer.Key);
+            var remaining = _sessions.RemainingFor(peer.Key);
+            var existing = Machines.FirstOrDefault(m => m.Key == peer.Key);
+
+            if (existing is null) Machines.Add(new MachineRow(peer, session, remaining));
+            else existing.Update(peer, session, remaining);
+        }
     }
 
     private string BuildPayload(string code) => $$"""

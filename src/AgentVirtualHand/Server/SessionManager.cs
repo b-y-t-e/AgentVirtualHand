@@ -1,25 +1,15 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace AgentVirtualHand.Server;
 
-public enum AccessState
-{
-    /// <summary>Nikt nie jest sparowany, parowanie zamknięte.</summary>
-    Locked,
-
-    /// <summary>Okno parowania otwarte - czekamy na klienta z kodem.</summary>
-    Pairing,
-
-    /// <summary>Klient sparowany, sesja aktywna.</summary>
-    Active
-}
-
+/// <summary>Dostęp jednej sparowanej maszyny: własny token i własne okno czasowe.</summary>
 public sealed record RemoteSession(
     string Token,
+    string PeerKey,
     DateTimeOffset IssuedAt,
     DateTimeOffset ExpiresAt,
-    string ClientAddress,
     string ClientName)
 {
     public DateTimeOffset LastSeen { get; set; } = IssuedAt;
@@ -27,258 +17,165 @@ public sealed record RemoteSession(
 }
 
 /// <summary>
-/// Cala logika bezpieczeństwa: jednorazowy kod parowania, token sesji, czas życia.
-/// Stan trzymany wyłącznie w pamięci - restart aplikacji odcina dostęp.
+/// Kto ma teraz dostęp do tej maszyny. Każdy sparowany klient dostaje osobną sesję,
+/// osobny token i osobne okno czasowe - odcięcie jednego nie rusza pozostałych.
+/// Stan żyje wyłącznie w pamięci, więc restart aplikacji odcina wszystkich.
 /// </summary>
 public sealed class SessionManager
 {
-    private static readonly TimeSpan PairingWindow = TimeSpan.FromMinutes(5);
-    private const int MaxFailedAttempts = 5;
-
     private readonly object _lock = new();
+    private readonly Dictionary<string, RemoteSession> _byPeer = [];
 
-    private string? _pairCode;
-    private DateTimeOffset _pairCodeExpiresAt;
-    private int _failedAttempts;
-    private RemoteSession? _session;
-
-    /// <summary>Czas trwania sesji ustawiany z GUI.</summary>
+    /// <summary>Długość okna dostępu ustawiana suwakiem w oknie.</summary>
     public TimeSpan SessionDuration { get; set; } = TimeSpan.FromHours(1);
 
     public event Action? Changed;
     public event Action<string, string>? Audit;
 
-    public AccessState State
+    public IReadOnlyList<RemoteSession> Sessions
     {
-        get
-        {
-            lock (_lock)
-            {
-                Sweep();
-                if (_session is not null) return AccessState.Active;
-                return _pairCode is not null ? AccessState.Pairing : AccessState.Locked;
-            }
-        }
+        get { lock (_lock) { Sweep(); return _byPeer.Values.ToList(); } }
     }
 
-    public string? PairCode
+    public bool HasAnySession
     {
-        get { lock (_lock) { Sweep(); return _pairCode; } }
+        get { lock (_lock) { Sweep(); return _byPeer.Count > 0; } }
     }
 
-    public DateTimeOffset PairCodeExpiresAt
+    public RemoteSession? ForPeer(string peerKey)
     {
-        get { lock (_lock) { return _pairCodeExpiresAt; } }
-    }
-
-    public RemoteSession? Session
-    {
-        get { lock (_lock) { Sweep(); return _session; } }
-    }
-
-    public TimeSpan? Remaining
-    {
-        get
-        {
-            lock (_lock)
-            {
-                Sweep();
-                if (_session is null) return null;
-                var left = _session.ExpiresAt - DateTimeOffset.Now;
-                return left > TimeSpan.Zero ? left : TimeSpan.Zero;
-            }
-        }
-    }
-
-    /// <summary>Otwiera okno parowania i zwraca nowy kod w formacie XXXX-XXXX.</summary>
-    public string StartPairing()
-    {
-        string code;
-        DateTimeOffset expires;
-        lock (_lock)
-        {
-            if (_session is not null)
-                throw new InvalidOperationException("Sesja jest aktywna - zakończ ją przed nowym parowaniem.");
-
-            code = GenerateCode();
-            _pairCode = code;
-            _pairCodeExpiresAt = DateTimeOffset.Now + PairingWindow;
-            expires = _pairCodeExpiresAt;
-            _failedAttempts = 0;
-        }
-
-        Audit?.Invoke("pair", $"Otwarto parowanie, kod ważny do {expires:HH:mm:ss}");
-        Changed?.Invoke();
-        return code;
-    }
-
-    public void CancelPairing()
-    {
-        lock (_lock)
-        {
-            if (_pairCode is null) return;
-            _pairCode = null;
-        }
-
-        Audit?.Invoke("pair", "Parowanie anulowane");
-        Changed?.Invoke();
-    }
-
-    /// <summary>Próba parowania. Sukces zamyka okno parowania na stałe.</summary>
-    public RemoteSession? TryPair(string? code, string clientAddress, string clientName)
-    {
-        RemoteSession? created = null;
-        string auditMessage;
-
         lock (_lock)
         {
             Sweep();
-
-            if (_session is not null)
-            {
-                auditMessage = $"ODRZUCONO parowanie z {clientAddress}: sesja już aktywna";
-            }
-            else if (_pairCode is null)
-            {
-                auditMessage = $"ODRZUCONO parowanie z {clientAddress}: parowanie zamknięte";
-            }
-            else if (!FixedTimeEquals(code, _pairCode))
-            {
-                _failedAttempts++;
-                auditMessage = $"BŁĘDNY kod od {clientAddress} (próba {_failedAttempts}/{MaxFailedAttempts})";
-                if (_failedAttempts >= MaxFailedAttempts)
-                {
-                    _pairCode = null;
-                    auditMessage += " - parowanie zablokowane";
-                }
-            }
-            else
-            {
-                var now = DateTimeOffset.Now;
-                created = new RemoteSession(
-                    Token: GenerateToken(),
-                    IssuedAt: now,
-                    ExpiresAt: now + SessionDuration,
-                    ClientAddress: clientAddress,
-                    ClientName: string.IsNullOrWhiteSpace(clientName) ? "nieznany klient" : clientName);
-
-                _session = created;
-                _pairCode = null; // parowanie zamykane natychmiast po sukcesie
-                auditMessage = $"SPAROWANO {clientAddress} ({created.ClientName}), dostęp do {created.ExpiresAt:HH:mm:ss}";
-            }
+            return _byPeer.GetValueOrDefault(peerKey);
         }
+    }
 
-        Audit?.Invoke(created is null ? "deny" : "pair", auditMessage);
-        Changed?.Invoke();
-        return created;
+    public TimeSpan? RemainingFor(string peerKey)
+    {
+        var session = ForPeer(peerKey);
+        if (session is null) return null;
+
+        var left = session.ExpiresAt - DateTimeOffset.Now;
+        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
     }
 
     /// <summary>
-    /// Otwiera okno dostępu dla maszyny sparowanej przez Tailcat.Link.
-    /// Kodu jednorazowego tu nie ma - tożsamość drugiej strony potwierdza samo sparowanie linku,
-    /// a to okno jest świadomą decyzją operatora i tak samo wygasa.
+    /// Otwiera okno dostępu dla sparowanej maszyny. Sparowanie potwierdza tożsamość,
+    /// ale wpuszczenie jej jest osobną decyzją operatora i tak samo wygasa.
     /// </summary>
-    public RemoteSession OpenForLink(string clientName)
+    public RemoteSession Open(string peerKey, string clientName)
     {
         RemoteSession created;
 
         lock (_lock)
         {
             Sweep();
-            if (_session is not null) return _session;
+            if (_byPeer.TryGetValue(peerKey, out var existing)) return existing;
 
             var now = DateTimeOffset.Now;
             created = new RemoteSession(
                 Token: GenerateToken(),
+                PeerKey: peerKey,
                 IssuedAt: now,
                 ExpiresAt: now + SessionDuration,
-                ClientAddress: "tailcat-link",
                 ClientName: string.IsNullOrWhiteSpace(clientName) ? "nieznany klient" : clientName);
 
-            _session = created;
-            _pairCode = null;
+            _byPeer[peerKey] = created;
         }
 
-        Audit?.Invoke("pair", $"OTWARTO dostęp przez link, do {created.ExpiresAt:HH:mm:ss}");
+        Audit?.Invoke("pair", $"OTWARTO dostęp dla {created.ClientName}, do {created.ExpiresAt:HH:mm:ss}");
         Changed?.Invoke();
         return created;
     }
 
-    /// <summary>Sprawdza token z nagłówka Authorization.</summary>
+    /// <summary>Sprawdza token z nagłówka Authorization. Jeden token = jedna maszyna.</summary>
     public RemoteSession? Validate(string? token)
     {
         lock (_lock)
         {
             Sweep();
-            if (_session is null || !FixedTimeEquals(token, _session.Token)) return null;
 
-            _session.LastSeen = DateTimeOffset.Now;
-            _session.RequestCount++;
-            return _session;
+            foreach (var session in _byPeer.Values)
+            {
+                if (!FixedTimeEquals(token, session.Token)) continue;
+
+                session.LastSeen = DateTimeOffset.Now;
+                session.RequestCount++;
+                return session;
+            }
+
+            return null;
         }
     }
 
-    public void Revoke(string reason)
+    public void Revoke(string peerKey, string reason)
     {
-        bool had;
+        RemoteSession? removed;
         lock (_lock)
         {
-            had = _session is not null || _pairCode is not null;
-            _session = null;
-            _pairCode = null;
+            _byPeer.Remove(peerKey, out removed);
         }
 
-        if (had)
-        {
-            Audit?.Invoke("revoke", $"Dostęp odcięty: {reason}");
-            Changed?.Invoke();
-        }
-    }
+        if (removed is null) return;
 
-    /// <summary>Przedłuża aktywną sesję o podany czas.</summary>
-    public void Extend(TimeSpan extra)
-    {
-        RemoteSession? updated;
-        lock (_lock)
-        {
-            Sweep();
-            if (_session is null) return;
-            updated = _session with { ExpiresAt = _session.ExpiresAt + extra };
-            updated.LastSeen = _session.LastSeen;
-            updated.RequestCount = _session.RequestCount;
-            _session = updated;
-        }
-
-        Audit?.Invoke("session", $"Sesja przedłużona do {updated.ExpiresAt:HH:mm:ss}");
+        Audit?.Invoke("revoke", $"Dostęp odcięty dla {removed.ClientName}: {reason}");
         Changed?.Invoke();
     }
 
-    /// <summary>Kasuje przeterminowany kod parowania i wygasza sesję. Wołane pod lockiem.</summary>
+    public void RevokeAll(string reason)
+    {
+        int count;
+        lock (_lock)
+        {
+            count = _byPeer.Count;
+            _byPeer.Clear();
+        }
+
+        if (count == 0) return;
+
+        Audit?.Invoke("revoke", $"Dostęp odcięty dla wszystkich maszyn ({count}): {reason}");
+        Changed?.Invoke();
+    }
+
+    public void Extend(string peerKey, TimeSpan extra)
+    {
+        RemoteSession? updated = null;
+
+        lock (_lock)
+        {
+            Sweep();
+            if (!_byPeer.TryGetValue(peerKey, out var session)) return;
+
+            updated = session with { ExpiresAt = session.ExpiresAt + extra };
+            updated.LastSeen = session.LastSeen;
+            updated.RequestCount = session.RequestCount;
+            _byPeer[peerKey] = updated;
+        }
+
+        Audit?.Invoke("session", $"Dostęp dla {updated.ClientName} przedłużony do {updated.ExpiresAt:HH:mm:ss}");
+        Changed?.Invoke();
+    }
+
+    /// <summary>Kasuje wygasłe sesje. Wołane pod lockiem.</summary>
     private void Sweep()
     {
         var now = DateTimeOffset.Now;
+        List<RemoteSession>? expired = null;
 
-        if (_pairCode is not null && now > _pairCodeExpiresAt)
+        foreach (var session in _byPeer.Values)
         {
-            _pairCode = null;
-            Audit?.Invoke("pair", "Kod parowania wygasł");
+            if (now <= session.ExpiresAt) continue;
+            (expired ??= []).Add(session);
         }
 
-        if (_session is not null && now > _session.ExpiresAt)
-        {
-            _session = null;
-            Audit?.Invoke("session", "Sesja wygasła - dostęp odcięty");
-        }
-    }
+        if (expired is null) return;
 
-    private static string GenerateCode()
-    {
-        // Alfabet bez znaków mylących się przy przepisywaniu (0/O, 1/I).
-        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        var chars = new char[9];
-        for (var i = 0; i < 9; i++)
-            chars[i] = i == 4 ? '-' : alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
-        return new string(chars);
+        foreach (var session in expired)
+        {
+            _byPeer.Remove(session.PeerKey);
+            Audit?.Invoke("session", $"Okno dostępu dla {session.ClientName} wygasło");
+        }
     }
 
     private static string GenerateToken()
@@ -289,6 +186,7 @@ public sealed class SessionManager
     private static bool FixedTimeEquals(string? candidate, string expected)
     {
         if (candidate is null) return false;
+
         var a = SHA256.HashData(Encoding.UTF8.GetBytes(candidate));
         var b = SHA256.HashData(Encoding.UTF8.GetBytes(expected));
         return CryptographicOperations.FixedTimeEquals(a, b);

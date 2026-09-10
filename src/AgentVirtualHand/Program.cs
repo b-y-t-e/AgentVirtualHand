@@ -50,10 +50,22 @@ internal static class Program
         link.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
 
         await server.StartAsync(new ServerOptions(port));
-        await link.StartAsync(TimeSpan.FromMinutes(15));
+        await link.StartAsync(TimeSpan.FromMinutes(15), maxPeers: 16);
 
-        // Tryb headless nie ma komu klikac "otworz dostep" - okno otwiera sie od razu.
-        sessions.OpenForLink("avh-link");
+        // Tryb headless nie ma komu klikac "otworz dostep", wiec kazda maszyna,
+        // ktora sie sparuje, dostaje okno od razu po dolaczeniu. Kod jest jednorazowy,
+        // wiec po jego zuzyciu wypisujemy kolejny - inaczej druga maszyna nie mialaby jak wejsc.
+        link.PeerJoined += peer =>
+        {
+            sessions.Open(peer.Key, peer.Name);
+            _ = Task.Run(async () =>
+            {
+                var next = await link.InviteAsync(TimeSpan.FromMinutes(15));
+                Console.WriteLine();
+                Console.WriteLine($"  Kod dla kolejnej maszyny:  {next.Code.Value}");
+                Console.WriteLine();
+            });
+        };
 
         Console.WriteLine();
         Console.WriteLine($"  Kod zaproszenia:  {link.InvitationCode}");
@@ -68,7 +80,7 @@ internal static class Program
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.TrySetResult(); };
         await stop.Task;
 
-        sessions.Revoke("zamknięcie trybu headless");
+        sessions.RevokeAll("zamknięcie trybu headless");
         await link.StopAsync();
         await server.StopAsync();
         return 0;

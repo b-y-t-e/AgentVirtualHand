@@ -4,17 +4,17 @@
         x:Class="AgentVirtualHand.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="AgentVirtualHand"
-        Width="720" Height="620"
-        MinWidth="640" MinHeight="520"
+        Width="760" Height="680"
+        MinWidth="660" MinHeight="540"
         Background="{DynamicResource Bg}"
         FontFamily="Cascadia Mono, Consolas, monospace"
         FontSize="13">
 
   <Panel>
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
 
-      <!-- Pasek stanu: nazwa maszyny i to, czy ktoś ma do niej dostęp -->
-      <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Height="44" Margin="24,0">
+      <!-- Pasek stanu: czyja to maszyna i kto na niej teraz pracuje -->
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto" Height="44" Margin="24,0">
         <TextBlock Grid.Column="0" Text="agentvirtualhand" FontSize="12.5" FontWeight="SemiBold"
                    Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Classes="k" FontSize="12" Margin="12,0,0,0"
@@ -23,8 +23,6 @@
                  VerticalAlignment="Center" />
         <TextBlock Grid.Column="4" Text="{Binding StatusText}" FontSize="12" Margin="8,0,0,0"
                    Foreground="{Binding StatusAccent}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="5" Classes="k" FontSize="12" Margin="12,0,0,0"
-                   Text="{Binding RemainingText}" VerticalAlignment="Center" />
       </Grid>
       <Border Grid.Row="0" Classes="sep" VerticalAlignment="Bottom" />
 
@@ -34,81 +32,46 @@
           <TextBlock Text="Maszyna jest odcięta" FontSize="15" FontWeight="SemiBold"
                      Foreground="{DynamicResource Text}" />
           <TextBlock Classes="ui"
-                     Text="Uruchom link, przekaż kod zaproszenia drugiej maszynie, potem otwórz dostęp. Bez adresu IP i bez otwartego portu - połączenie zestawia Tailcat." />
+                     Text="Uruchom link, przekaż kod zaproszenia maszynie, którą chcesz wpuścić, a potem otwórz jej dostęp. Bez adresu IP i bez otwartego portu - połączenie zestawia Tailcat." />
         </StackPanel>
         <Button Classes="primary" Content="Uruchom link" HorizontalAlignment="Left" Width="160"
                 Click="OnToggleServer" />
       </StackPanel>
 
-      <!-- Link działa, dostęp jeszcze zamknięty -->
-      <StackPanel Grid.Row="1" Margin="24,26,24,24" Spacing="18" IsVisible="{Binding ShowPairPrompt}">
-        <StackPanel Spacing="8">
-          <TextBlock Classes="k" Text="kod zaproszenia" />
-          <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="14"
-                               Foreground="{DynamicResource Link}" TextWrapping="Wrap" />
-          <TextBlock Classes="ui" Margin="0,4,0,0"
-                     Text="Na drugiej maszynie wpisz avh-link join z tym kodem albo wklej go w oknie huba. Kod działa raz, potem klient wraca bez niego. Dostęp otwierasz osobno i wygasa sam." />
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Classes="primary" Content="Otwórz dostęp" Width="150"
-                  IsEnabled="{Binding CanPair}" Click="OnOpenAccess" />
-          <Button Content="Nowy kod" Click="OnNewInvitation" />
-          <Button Content="Odepnij maszynę" Click="OnResetPeer" />
-          <Button Content="Zatrzymaj link" Click="OnToggleServer" />
-        </StackPanel>
-      </StackPanel>
-
-      <!-- Dostęp otwarty: kod i QR to jedyne, co trzeba stąd przenieść -->
-      <Grid Grid.Row="1" Margin="24,24,24,22" ColumnDefinitions="140,24,*"
-            IsVisible="{Binding HasSession}">
-        <Border Grid.Column="0" Width="140" Height="140" CornerRadius="3" Padding="10"
+      <!-- Zaproszenie: kod plus QR, jedyne co trzeba przenieść na drugą maszynę -->
+      <Grid Grid.Row="1" Margin="24,22,24,20" ColumnDefinitions="120,22,*"
+            IsVisible="{Binding HasInvitation}">
+        <Border Grid.Column="0" Width="120" Height="120" CornerRadius="3" Padding="9"
                 VerticalAlignment="Top" Background="White">
           <Image Source="{Binding QrImage}" />
         </Border>
 
-        <StackPanel Grid.Column="2" Spacing="16">
+        <StackPanel Grid.Column="2" Spacing="14">
           <StackPanel Spacing="7">
-            <TextBlock Classes="k" Text="kod zaproszenia" />
-            <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="14" FontWeight="SemiBold"
-                                 Foreground="{DynamicResource Text}" TextWrapping="Wrap" />
-            <TextBlock Classes="k" Text="działa raz, przez 15 minut" />
+            <TextBlock Classes="k" Text="kod zaproszenia dla kolejnej maszyny" />
+            <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="13.5"
+                                 Foreground="{DynamicResource Link}" TextWrapping="Wrap" />
+            <TextBlock Classes="k" Text="wpuszcza jedną maszynę, ważny 15 minut" />
           </StackPanel>
 
-          <Grid ColumnDefinitions="Auto,*">
-            <TextBlock Grid.Column="0" Classes="k" Text="druga maszyna" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Classes="val" Text="{Binding PeerText}" Margin="12,0,0,0"
-                       VerticalAlignment="Center" />
-          </Grid>
-
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Classes="primary" Content="Kopiuj instrukcję" Width="180" Click="OnCopy" />
+            <Button Classes="primary" Content="Kopiuj instrukcję" Width="170" Click="OnCopy" />
             <Button Content="Nowy kod" Click="OnNewInvitation" />
+            <Button Content="Zatrzymaj link" Click="OnToggleServer" />
           </StackPanel>
         </StackPanel>
       </Grid>
       <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
 
-      <!-- Ustawienia: cztery wartości, nie cztery formularze -->
-      <Grid Grid.Row="2" Margin="24,18" ColumnDefinitions="*,40,*" RowDefinitions="Auto,12,Auto">
-        <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="Auto,*">
+      <!-- Ustawienia -->
+      <Grid Grid.Row="2" Margin="24,16" ColumnDefinitions="*,40,*">
+        <Grid Grid.Column="0" ColumnDefinitions="Auto,*">
           <TextBlock Grid.Column="0" Classes="k" Text="port lokalny" VerticalAlignment="Center" />
           <TextBox Grid.Column="1" Text="{Binding Port}" IsEnabled="{Binding !IsRunning}"
                    Width="90" HorizontalAlignment="Right" HorizontalContentAlignment="Right"
                    VerticalAlignment="Center" />
         </Grid>
-        <Grid Grid.Row="0" Grid.Column="2" ColumnDefinitions="Auto,*">
-          <TextBlock Grid.Column="0" Classes="k" Text="klient" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Classes="val" Text="{Binding ClientText}" Margin="12,0,0,0"
-                     HorizontalAlignment="Right" VerticalAlignment="Center"
-                     TextTrimming="CharacterEllipsis" />
-        </Grid>
-
-        <Grid Grid.Row="2" Grid.Column="0" ColumnDefinitions="Auto,*">
-          <TextBlock Grid.Column="0" Classes="k" Text="link" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Classes="val" Text="{Binding PeerText}" Margin="12,0,0,0"
-                     HorizontalAlignment="Right" VerticalAlignment="Center" />
-        </Grid>
-        <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="Auto,*">
+        <Grid Grid.Column="2" ColumnDefinitions="Auto,*">
           <TextBlock Grid.Column="0" Classes="k" Text="okno dostępu" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Classes="val" Text="{Binding DurationText}" Margin="12,0,0,0"
                      HorizontalAlignment="Right" VerticalAlignment="Center" />
@@ -116,8 +79,55 @@
       </Grid>
       <Border Grid.Row="2" Classes="sep" VerticalAlignment="Bottom" />
 
-      <!-- Długość okna dostępu ustawia się przed startem, w trakcie nic już nie zmienia -->
-      <StackPanel Grid.Row="3" Margin="24,16,24,16" Spacing="6" IsVisible="{Binding !IsRunning}">
+      <!-- Sparowane maszyny -->
+      <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="24,16,24,0">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+          <TextBlock Grid.Column="0" Classes="k" Text="maszyny" />
+          <TextBlock Grid.Column="2" Classes="k" Text="{Binding MachinesSummary}" />
+        </Grid>
+
+        <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoMachines}"
+                   Text="Żadna maszyna nie jest jeszcze sparowana. Przekaż powyższy kod tam, gdzie ma działać klient, a maszyna pojawi się na tej liście." />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasMachines}">
+          <ItemsControl ItemsSource="{Binding Machines}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MachineRow">
+                <Grid ColumnDefinitions="2,18,*" Margin="0,0,0,2">
+                  <Border Grid.Column="0" Background="{Binding StatusAccent}" CornerRadius="1"
+                          Margin="0,10,0,10" />
+
+                  <Grid Grid.Column="2" RowDefinitions="Auto,6,Auto" Margin="0,14,0,14">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                      <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12"
+                                 Foreground="{Binding StatusAccent}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                      <TextBlock Grid.Column="0" Classes="val" Text="{Binding DetailText}"
+                                 VerticalAlignment="Center" />
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <Button Classes="primary" Content="{Binding AccessButtonText}"
+                                IsEnabled="{Binding CanOpen}" Click="OnToggleAccess" />
+                        <Button Classes="quiet" Content="Odetnij" Click="OnRevokeAccess"
+                                IsEnabled="{Binding HasAccess}" />
+                        <Button Classes="danger" Content="Odepnij" Click="OnForgetMachine" />
+                      </StackPanel>
+                    </Grid>
+                  </Grid>
+
+                  <Border Grid.Column="2" Classes="sep" VerticalAlignment="Bottom" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+
+      <!-- Długość okna dostępu ustawia się przed otwarciem, nie w trakcie -->
+      <StackPanel Grid.Row="4" Margin="24,16,24,10" Spacing="6">
         <Slider Minimum="5" Maximum="480" TickFrequency="5" IsSnapToTickEnabled="True"
                 Value="{Binding DurationMinutes}" />
         <Grid ColumnDefinitions="Auto,*,Auto">
@@ -126,18 +136,8 @@
         </Grid>
       </StackPanel>
 
-      <!-- Aktywna sesja: czas jest tu najważniejszy -->
-      <Grid Grid.Row="4" Margin="24,16" ColumnDefinitions="Auto,Auto,*,Auto,Auto"
-            IsVisible="{Binding HasSession}">
-        <TextBlock Grid.Column="0" Classes="k" Text="pozostało" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1" Text="{Binding RemainingText}" FontSize="18" Margin="12,0,0,0"
-                   Foreground="{DynamicResource Ok}" VerticalAlignment="Center" />
-        <Button Grid.Column="3" Content="Przedłuż" Click="OnExtend" Margin="0,0,8,0" />
-        <Button Grid.Column="4" Classes="danger" Content="Odetnij dostęp" Click="OnEndSession" />
-      </Grid>
-
       <!-- Log -->
-      <Grid Grid.Row="5" RowDefinitions="Auto,*" Margin="24,16,24,0">
+      <Grid Grid.Row="5" RowDefinitions="Auto,Auto" Margin="24,8,24,0" MaxHeight="150">
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
           <TextBlock Grid.Column="0" Classes="k" Text="log" />
           <TextBlock Grid.Column="2" Classes="k" Text="{Binding Logs.Count}" />
@@ -146,7 +146,7 @@
           <ItemsControl ItemsSource="{Binding Logs}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:LogEntry">
-                <Grid ColumnDefinitions="Auto,14,44,14,*" Margin="0,0,0,7">
+                <Grid ColumnDefinitions="Auto,14,44,14,*" Margin="0,0,0,6">
                   <TextBlock Grid.Column="0" Text="{Binding Time}" FontSize="12"
                              Foreground="{DynamicResource Muted}" />
                   <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="12"
@@ -160,26 +160,14 @@
         </ScrollViewer>
       </Grid>
 
-      <TextBlock Grid.Row="6" Classes="ui" FontSize="12.5" MaxWidth="640"
-                 HorizontalAlignment="Left" Margin="24,16,24,16" Text="{Binding Hint}" />
-
-      <Border Grid.Row="7" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
-              Padding="24,12">
-        <StackPanel Orientation="Horizontal" Spacing="22">
-          <TextBlock Classes="k" FontSize="11.5">
-            <Run Text="^S" /><Run Text=" " /><Run Text="{Binding ServerButtonText}"
-                                                 Foreground="{DynamicResource Soft}" />
-          </TextBlock>
-          <TextBlock Classes="k" FontSize="11.5">
-            <Run Text="^P" /><Run Text=" " /><Run Text="otwórz dostęp" Foreground="{DynamicResource Soft}" />
-          </TextBlock>
-          <TextBlock Classes="k" FontSize="11.5">
-            <Run Text="^D" /><Run Text=" " /><Run Text="kopiuj" Foreground="{DynamicResource Soft}" />
-          </TextBlock>
-          <TextBlock Classes="k" FontSize="11.5">
-            <Run Text="^N" /><Run Text=" " /><Run Text="nowy kod" Foreground="{DynamicResource Soft}" />
-          </TextBlock>
-        </StackPanel>
+      <Border Grid.Row="6" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
+              Padding="24,12" Margin="0,16,0,0">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Classes="ui" FontSize="12.5" MaxWidth="520"
+                     VerticalAlignment="Center" Text="{Binding Hint}" />
+          <Button Grid.Column="1" Classes="danger" Content="Odetnij wszystkie"
+                  IsEnabled="{Binding HasMachines}" Click="OnRevokeEveryone" />
+        </Grid>
       </Border>
     </Grid>
 
@@ -211,7 +199,6 @@
           <StackPanel Spacing="10">
             <Button Classes="primary" HorizontalAlignment="Stretch" Content="{Binding Lock.ActionText}"
                     IsEnabled="{Binding Lock.CanSubmit}" Click="OnLockSubmit" />
-            <!-- Miejsce na odliczanie jest zawsze, więc układ nie skacze po błędnej próbie -->
             <TextBlock Classes="k" Height="14" IsVisible="{Binding Lock.HasPenalty}"
                        Foreground="{DynamicResource Warn}"
                        Text="{Binding Lock.PenaltySeconds, StringFormat='kolejna próba za {0} s'}" />

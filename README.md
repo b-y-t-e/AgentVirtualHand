@@ -14,8 +14,9 @@ Dostep jest **osobno otwierany**, **czasowy** i **w pelni widoczny** w logu apli
 1. Na maszynie sterowanej: **Uruchom link**. Aplikacja pokazuje kod zaproszenia (wazny 15 minut).
 2. Na maszynie klienta: `avh-link join <kod>` albo wklejenie kodu w oknie **avh-hub**.
    Kod jest jednorazowy - potem sparowanie jest pamietane i klient wraca bez niego.
-3. Na maszynie sterowanej: **Otworz dostep**. Sparowanie potwierdza tozsamosc maszyny, ale
-   wpuszczenie jej jest osobna decyzja i wygasa razem z sesja (suwak 5 min - 8 h).
+3. Na maszynie sterowanej maszyna pojawia sie na liscie. **Otworz dostep** przy jej nazwie:
+   sparowanie potwierdza tozsamosc, ale wpuszczenie jest osobna decyzja i wygasa razem z sesja
+   (suwak 5 min - 8 h). Kazda maszyna ma wlasne okno czasowe - odciecie jednej nie rusza reszty.
 4. **Kopiuj instrukcje** wrzuca do schowka gotowy blok tekstu z kodem i opisem polecen -
    wklejasz go w Claude Code na drugim komputerze.
 5. Po uplywie czasu kazde polecenie konczy sie `401` i trzeba otworzyc dostep na nowo.
@@ -56,9 +57,11 @@ Czego **nie** ma i o czym trzeba pamietac:
   ani listy dozwolonych polecen;
 - sparowanie jest trwale (trust on first use): po pierwszym `join` druga maszyna wraca bez kodu.
   Odbiera sie je przez `avh-link forget` (albo **Usun** w hubie) po stronie klienta,
-  a po stronie hosta przyciskiem **Odepnij maszyne**;
-- host trzyma dokladnie **jedna** sparowana maszyne klienta. Zeby wpuscic inna, trzeba najpierw
-  odpiac poprzednia - dotychczasowy klient przestaje sie wtedy laczyc;
+  a po stronie hosta przyciskiem **Odepnij** przy nazwie maszyny;
+- kod zaproszenia jest **jednorazowy**: wpuszcza jedna maszyne i traci waznosc po uzyciu.
+  Kolejna maszyna wymaga nowego kodu (**Nowy kod**);
+- kilku klientow moze pracowac na jednej maszynie naraz i **widza nawzajem swoje zmiany** -
+  to ta sama maszyna, nie osobne piaskownice;
 - to narzedzie awaryjne. Wlaczasz je, gdy potrzebujesz pomocy, i wylaczasz, gdy problem jest rozwiazany.
 
 ## Uruchomienie

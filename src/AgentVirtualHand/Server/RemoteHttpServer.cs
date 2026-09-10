@@ -130,67 +130,37 @@ public sealed class RemoteHttpServer : IAsyncDisposable
 
     private void MapEndpoints(WebApplication app)
     {
-        app.MapGet("/", () => Results.Content(HtmlPages.Landing(_sessions.State), "text/html; charset=utf-8"));
-
-        app.MapGet("/pair", (string? code) =>
-            Results.Content(HtmlPages.PairForm(code), "text/html; charset=utf-8"));
-
         app.MapGet("/api/status", () => Results.Json(new
         {
             app = "AgentVirtualHand",
             version = AppInfo.Version,
             host = Environment.MachineName,
             os = AppInfo.OsDescription,
-            pairingOpen = _sessions.State == AccessState.Pairing,
-            sessionActive = _sessions.State == AccessState.Active
+            openSessions = _sessions.Sessions.Count
         }, Json));
-
-        app.MapPost("/api/pair", async (HttpContext ctx) =>
-        {
-            var (request, jsonError) = await ReadJsonAsync<PairRequest>(ctx);
-            if (jsonError is not null) return jsonError;
-            var client = ctx.Connection.RemoteIpAddress?.ToString() ?? "?";
-            var session = _sessions.TryPair(request?.Code?.Trim().ToUpperInvariant(), client, request?.Client ?? "");
-
-            if (session is null)
-                return Results.Json(new { error = "Parowanie odrzucone: zły kod, zamknięte okno lub aktywna sesja." },
-                    Json, statusCode: StatusCodes.Status403Forbidden);
-
-            return Results.Json(new
-            {
-                token = session.Token,
-                expiresAt = session.ExpiresAt,
-                expiresInSeconds = (int)(session.ExpiresAt - DateTimeOffset.Now).TotalSeconds,
-                host = Environment.MachineName,
-                os = AppInfo.OsDescription,
-                defaultShell = ShellRunner.DefaultShell,
-                home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                help = "GET /api/help zwraca pełną instrukcję API."
-            }, Json);
-        });
 
         var api = app.MapGroup("/api").AddEndpointFilter(AuthFilter);
 
         api.MapGet("/help", () => Results.Text(HelpText.Markdown(), "text/markdown; charset=utf-8"));
 
-        api.MapGet("/session", () =>
+        api.MapGet("/session", (HttpContext ctx) =>
         {
-            var s = _sessions.Session!;
+            var session = Caller(ctx)!;
             return Results.Json(new
             {
-                issuedAt = s.IssuedAt,
-                expiresAt = s.ExpiresAt,
-                remainingSeconds = (int)(_sessions.Remaining ?? TimeSpan.Zero).TotalSeconds,
-                client = s.ClientAddress,
-                clientName = s.ClientName,
-                requests = s.RequestCount
+                issuedAt = session.IssuedAt,
+                expiresAt = session.ExpiresAt,
+                remainingSeconds = (int)(_sessions.RemainingFor(session.PeerKey) ?? TimeSpan.Zero).TotalSeconds,
+                clientName = session.ClientName,
+                requests = session.RequestCount,
+                otherMachinesConnected = _sessions.Sessions.Count - 1
             }, Json);
         });
 
-        api.MapPost("/session/end", () =>
+        api.MapPost("/session/end", (HttpContext ctx) =>
         {
-            _sessions.Revoke("zakończone przez klienta");
-            _shell.KillAll();
+            // Konczy dostep tylko tego klienta - pozostale maszyny pracuja dalej.
+            _sessions.Revoke(Caller(ctx)!.PeerKey, "zakończone przez klienta");
             return Results.Json(new { ended = true }, Json);
         });
 
@@ -398,6 +368,11 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         }, Json));
     }
 
+    private const string CallerKey = "avh.session";
+
+    /// <summary>Sesja klienta, ktory wykonuje to zadanie - ustawiana przez filtr uwierzytelniajacy.</summary>
+    private static RemoteSession? Caller(HttpContext ctx) => ctx.Items[CallerKey] as RemoteSession;
+
     private async ValueTask<object?> AuthFilter(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
     {
         var http = ctx.HttpContext;
@@ -406,13 +381,14 @@ public sealed class RemoteHttpServer : IAsyncDisposable
             ? header[7..].Trim()
             : http.Request.Headers["X-AVH-Token"].ToString();
 
-        if (_sessions.Validate(token) is null)
+        if (_sessions.Validate(token) is not { } session)
         {
-            Audit?.Invoke("deny", $"401 {http.Request.Method} {http.Request.Path} od {http.Connection.RemoteIpAddress}");
-            return Results.Json(new { error = "Brak waznej sesji. Sparuj się ponownie w aplikacji." },
+            Audit?.Invoke("deny", $"401 {http.Request.Method} {http.Request.Path}");
+            return Results.Json(new { error = "Brak ważnego dostępu. Poproś właściciela maszyny o otwarcie dostępu." },
                 Json, statusCode: StatusCodes.Status401Unauthorized);
         }
 
+        http.Items[CallerKey] = session;
         return await next(ctx);
     }
 

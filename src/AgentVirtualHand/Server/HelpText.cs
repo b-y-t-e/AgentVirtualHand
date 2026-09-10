@@ -17,6 +17,10 @@ public static class HelpText
         żądanie kończy się `401` i trzeba poprosić o ponowne otwarcie dostępu w jego oknie.
         `502` oznacza chwilowo zerwany link, nie brak uprawnień.
 
+        Na jednej maszynie może pracować kilku klientów naraz, każdy z własnym oknem dostępu.
+        `GET /api/session` pokazuje w polu `otherMachinesConnected`, ilu jeszcze pracuje obok -
+        licz się z tym, że ktoś może w tym czasie zmieniać te same pliki.
+
         ## Sesja
         - `GET  /api/session`      - ile czasu zostało, kto jest połączony
         - `POST /api/session/end`  - dobrowolne zakończenie sesji (kulturalne wyjście)
