@@ -10,3 +10,7 @@ avh-blad.log
 
 # mTiles workspace state
 .mtiles/
+
+# archiwa wydania
+*.7z
+*.zip
