@@ -11,15 +11,16 @@ Dostep jest **osobno otwierany**, **czasowy** i **w pelni widoczny** w logu apli
 
 ## Jak to dziala
 
-1. Na maszynie sterowanej: **Uruchom link**. Aplikacja pokazuje kod zaproszenia (wazny 15 minut).
-2. Na maszynie klienta: `avh-link join <kod>` albo wklejenie kodu w oknie **avh-hub**.
-   Kod jest jednorazowy - potem sparowanie jest pamietane i klient wraca bez niego.
-3. Na maszynie sterowanej maszyna pojawia sie na liscie. **Otworz dostep** przy jej nazwie:
-   sparowanie potwierdza tozsamosc, ale wpuszczenie jest osobna decyzja i wygasa razem z sesja
-   (suwak 5 min - 8 h). Kazda maszyna ma wlasne okno czasowe - odciecie jednej nie rusza reszty.
-4. **Kopiuj instrukcje** wrzuca do schowka gotowy blok tekstu z kodem i opisem polecen -
-   wklejasz go w Claude Code na drugim komputerze.
-5. Po uplywie czasu kazde polecenie konczy sie `401` i trzeba otworzyc dostep na nowo.
+1. Na maszynie sterowanej: **Uruchom link**, ustaw suwakiem **na ile wpuszczasz** (5 min - 8 h)
+   i kliknij **Zapros maszyne**. Aplikacja pokazuje kod wazny 15 minut.
+2. Przekazujesz kod tam, gdzie ma dzialac klient: `avh-link join <kod>` albo wklejenie w oknie
+   **avh-hub**. Kod wpuszcza **jedna** maszyne i po uzyciu **znika z okna**.
+3. Maszyna, ktora go uzyla, od razu pracuje - pojawia sie na liscie z odliczaniem. Przekazanie
+   kodu jest juz decyzja o wpuszczeniu, wiec nie ma osobnego potwierdzania.
+4. Gdy czas minie, maszyna traci dostep i potrzebuje nowego kodu. W trakcie mozna **Przedluzyc**
+   albo **Odetnac** kazda maszyne osobno; **Odetnij wszystkie** konczy prace wszystkim naraz.
+
+Kilka maszyn moze pracowac naraz, kazda z wlasnym oknem czasowym i wlasnym tokenem.
 
 Pierwsze polecenie zestawia link w tle (kilkanascie sekund), kolejne ida w okolo 0,7 s.
 `avh-link down` zamyka polaczenie w tle, `avh-link up` podnosi je z powrotem.
@@ -41,11 +42,12 @@ Co jest zrobione:
 
 - okno zablokowane haslem po 30 s bezczynnosci, z kara 10 s za bledna probe;
 
-- serwer HTTP sluzy tylko za wewnetrzna szyne i sluchaa **wylacznie na 127.0.0.1** - z sieci
-  nie ma czego skanowac, zaden port nie jest wystawiony;
+- serwer HTTP sluzy tylko za wewnetrzna szyne, sluchaa **wylacznie na 127.0.0.1** i na porcie
+  przydzielonym przez system - z sieci nie ma czego skanowac, zaden port nie jest wystawiony;
 - transport miedzy maszynami zestawia Tailcat.Link (szyfrowany, z wlasna tozsamoscia wezla);
 - kod zaproszenia jednorazowy, wazny 15 minut; **Nowy kod** uniewaznia poprzedni;
-- samo sparowanie nie daje dostepu - dostep otwiera sie osobnym przyciskiem i wygasa;
+- kod daje dostep tylko na ustawiony czas: po jego uplywie maszyna nie zrobi juz nic
+  bez kolejnego kodu, mimo ze sparowanie zostaje;
 - token sesji nigdy nie opuszcza maszyny sterowanej - klient go nie zna i nie przekazuje;
 - twardy limit czasu sesji, przycisk **Odetnij dostep** ubija sesje i wszystkie uruchomione procesy;
 - zamkniecie okna aplikacji konczy sesje i zatrzymuje link;
@@ -71,10 +73,11 @@ dotnet run --project src/AgentVirtualHand          # GUI maszyny sterowanej
 dotnet build -c Release AgentVirtualHand.slnx      # kompilacja calosci
 ```
 
-Tryb bez pulpitu (serwer, SSH) - kod zaproszenia ladzie na konsoli, dostep otwiera sie od razu:
+Tryb bez pulpitu (serwer, SSH) - kod zaproszenia ladzie na konsoli, a po jego uzyciu
+wypisywany jest kolejny:
 
 ```bash
-avh --headless --port 8787 --minutes 60
+avh --headless --minutes 60
 ```
 
 Wydanie samodzielne (jeden plik na aplikacje, bez zainstalowanego .NET na maszynie docelowej):
@@ -149,7 +152,7 @@ src/AgentVirtualHand/
   Server/LinkProtocol.cs     koperta wymieniana z klientem (wspolna z avh-link)
   Server/ShellRunner.cs      uruchamianie polecen i procesow w tle
   Server/HelpText.cs         instrukcja zwracana przez avh-link help
-  Services/                  QR, ustawienia
+  Services/                  ustawienia, blokada okna haslem
 
 src/AgentVirtualHand.Link/
   Program.cs                 klient avh-link: polecenia -> koperty

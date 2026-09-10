@@ -58,7 +58,7 @@ public partial class MainWindow : Window
                 break;
             case Key.P when Model.IsRunning:
                 e.Handled = true;
-                await Model.NewInvitationAsync();
+                await Model.InviteAsync();
                 break;
             case Key.D when Model.HasInvitation:
                 e.Handled = true;
@@ -81,10 +81,10 @@ public partial class MainWindow : Window
     /// <summary>Przyciski siedza w szablonie wiersza, wiec maszyne bierzemy z jego kontekstu.</summary>
     private static MachineRow? RowOf(object? sender) => (sender as Control)?.DataContext as MachineRow;
 
-    private void OnToggleAccess(object? sender, RoutedEventArgs e)
+    private void OnExtendAccess(object? sender, RoutedEventArgs e)
     {
         if (Model is null || RowOf(sender) is not { } machine) return;
-        Model.ToggleAccess(machine);
+        Model.ExtendAccess(machine);
     }
 
     private void OnRevokeAccess(object? sender, RoutedEventArgs e)
@@ -93,16 +93,10 @@ public partial class MainWindow : Window
         Model.RevokeAccess(machine);
     }
 
-    private async void OnForgetMachine(object? sender, RoutedEventArgs e)
-    {
-        if (Model is null || RowOf(sender) is not { } machine) return;
-        await Model.ForgetMachineAsync(machine);
-    }
-
-    private async void OnNewInvitation(object? sender, RoutedEventArgs e)
+    private async void OnInvite(object? sender, RoutedEventArgs e)
     {
         if (Model is null) return;
-        await Model.NewInvitationAsync();
+        await Model.InviteAsync();
     }
 
     private void OnRevokeEveryone(object? sender, RoutedEventArgs e) => Model?.RevokeEveryone();

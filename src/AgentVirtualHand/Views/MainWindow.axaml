@@ -38,56 +38,41 @@
                 Click="OnToggleServer" />
       </StackPanel>
 
-      <!-- Zaproszenie: kod plus QR, jedyne co trzeba przenieść na drugą maszynę -->
-      <Grid Grid.Row="1" Margin="24,22,24,20" ColumnDefinitions="120,22,*"
-            IsVisible="{Binding HasInvitation}">
-        <Border Grid.Column="0" Width="120" Height="120" CornerRadius="3" Padding="9"
-                VerticalAlignment="Top" Background="White">
-          <Image Source="{Binding QrImage}" />
-        </Border>
-
-        <StackPanel Grid.Column="2" Spacing="14">
-          <StackPanel Spacing="7">
-            <TextBlock Classes="k" Text="kod zaproszenia dla kolejnej maszyny" />
-            <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="13.5"
-                                 Foreground="{DynamicResource Link}" TextWrapping="Wrap" />
-            <TextBlock Classes="k" Text="wpuszcza jedną maszynę, ważny 15 minut" />
-          </StackPanel>
-
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Classes="primary" Content="Kopiuj kod" Width="140" Click="OnCopy" />
-            <Button Content="Nowy kod" Click="OnNewInvitation" />
-            <Button Content="Zatrzymaj link" Click="OnToggleServer" />
-          </StackPanel>
+      <!-- Link dziala, zaden kod nie czeka na uzycie -->
+      <StackPanel Grid.Row="1" Margin="24,26,24,24" Spacing="18" IsVisible="{Binding ShowInvitePrompt}">
+        <TextBlock Classes="ui"
+                   Text="Zaproś maszynę, która ma tu pracować. Kod wpuszcza jedną maszynę na czas ustawiony poniżej, a potem znika." />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Classes="primary" Content="Zaproś maszynę" Width="170" Click="OnInvite" />
+          <Button Content="Zatrzymaj link" Click="OnToggleServer" />
         </StackPanel>
-      </Grid>
-      <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
+      </StackPanel>
 
-      <!-- Ustawienia -->
-      <Grid Grid.Row="2" Margin="24,16" ColumnDefinitions="*,40,*">
-        <Grid Grid.Column="0" ColumnDefinitions="Auto,*">
-          <TextBlock Grid.Column="0" Classes="k" Text="port lokalny" VerticalAlignment="Center" />
-          <TextBox Grid.Column="1" Text="{Binding Port}" IsEnabled="{Binding !IsRunning}"
-                   Width="90" HorizontalAlignment="Right" HorizontalContentAlignment="Right"
-                   VerticalAlignment="Center" />
-        </Grid>
-        <Grid Grid.Column="2" ColumnDefinitions="Auto,*">
-          <TextBlock Grid.Column="0" Classes="k" Text="okno dostępu" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Classes="val" Text="{Binding DurationText}" Margin="12,0,0,0"
-                     HorizontalAlignment="Right" VerticalAlignment="Center" />
-        </Grid>
-      </Grid>
-      <Border Grid.Row="2" Classes="sep" VerticalAlignment="Bottom" />
+      <!-- Kod czeka na wpisanie po drugiej stronie -->
+      <StackPanel Grid.Row="1" Margin="24,24,24,22" Spacing="16" IsVisible="{Binding HasInvitation}">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="k" Text="kod dla jednej maszyny" />
+          <SelectableTextBlock Text="{Binding InvitationCode}" FontSize="13.5"
+                               Foreground="{DynamicResource Link}" TextWrapping="Wrap" />
+          <TextBlock Classes="k" Text="{Binding InvitationHint}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Classes="primary" Content="Kopiuj kod" Width="140" Click="OnCopy" />
+          <Button Content="Nowy kod" Click="OnInvite" />
+          <Button Content="Zatrzymaj link" Click="OnToggleServer" />
+        </StackPanel>
+      </StackPanel>
 
       <!-- Sparowane maszyny -->
       <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="24,16,24,0">
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
-          <TextBlock Grid.Column="0" Classes="k" Text="maszyny" />
+          <TextBlock Grid.Column="0" Classes="k" Text="maszyny z dostępem" />
           <TextBlock Grid.Column="2" Classes="k" Text="{Binding MachinesSummary}" />
         </Grid>
 
         <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoMachines}"
-                   Text="Żadna maszyna nie jest jeszcze sparowana. Przekaż powyższy kod tam, gdzie ma działać klient, a maszyna pojawi się na tej liście." />
+                   Text="Nikt teraz nie pracuje na tej maszynie. Maszyna pojawi się tutaj, gdy użyje kodu zaproszenia." />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasMachines}">
           <ItemsControl ItemsSource="{Binding Machines}">
@@ -109,11 +94,8 @@
                       <TextBlock Grid.Column="0" Classes="val" Text="{Binding DetailText}"
                                  VerticalAlignment="Center" />
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Classes="primary" Content="{Binding AccessButtonText}"
-                                IsEnabled="{Binding CanOpen}" Click="OnToggleAccess" />
-                        <Button Classes="quiet" Content="Odetnij" Click="OnRevokeAccess"
-                                IsEnabled="{Binding HasAccess}" />
-                        <Button Classes="danger" Content="Odepnij" Click="OnForgetMachine" />
+                        <Button Content="Przedłuż" Click="OnExtendAccess" />
+                        <Button Classes="danger" Content="Odetnij" Click="OnRevokeAccess" />
                       </StackPanel>
                     </Grid>
                   </Grid>
@@ -126,14 +108,14 @@
         </ScrollViewer>
       </Grid>
 
-      <!-- Długość okna dostępu ustawia się przed otwarciem, nie w trakcie -->
-      <StackPanel Grid.Row="4" Margin="24,16,24,10" Spacing="6">
+      <!-- Jedyny parametr: na jak długo kod wpuszcza maszynę -->
+      <StackPanel Grid.Row="4" Margin="24,16,24,10" Spacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Grid.Column="0" Classes="k" Text="dostęp na" />
+          <TextBlock Grid.Column="2" Classes="val" Text="{Binding DurationText}" />
+        </Grid>
         <Slider Minimum="5" Maximum="480" TickFrequency="5" IsSnapToTickEnabled="True"
                 Value="{Binding DurationMinutes}" />
-        <Grid ColumnDefinitions="Auto,*,Auto">
-          <TextBlock Grid.Column="0" Classes="k" Text="5 min" />
-          <TextBlock Grid.Column="2" Classes="k" Text="8 h" />
-        </Grid>
       </StackPanel>
 
       <!-- Log -->

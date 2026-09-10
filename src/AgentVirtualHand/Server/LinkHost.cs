@@ -21,6 +21,7 @@ public sealed class LinkHost : IAsyncDisposable
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
     private ILinkHost? _host;
+    private LinkInvitation? _invitation;
 
     public LinkHost(SessionManager sessions) => _sessions = sessions;
 
@@ -32,10 +33,13 @@ public sealed class LinkHost : IAsyncDisposable
 
     public bool IsHosting => _host is not null;
 
-    /// <summary>Kod, który wpisuje się raz po drugiej stronie: avh-link join &lt;kod&gt;.</summary>
-    public string InvitationCode => _host?.InvitationCode.Value ?? "";
+    /// <summary>
+    /// Kod aktualnego zaproszenia albo pusty, gdy zadne nie czeka na uzycie.
+    /// Znika sam, gdy maszyna go uzyje - bo zaproszenie jest jednorazowe.
+    /// </summary>
+    public string InvitationCode => _invitation?.Code.Value ?? "";
 
-    public DateTimeOffset? InvitationExpiresAt => _host?.InvitationExpiresAt;
+    public DateTimeOffset? InvitationExpiresAt => _invitation?.ExpiresAt;
 
     /// <summary>Ile maszyn może być sparowanych jednocześnie - limit biblioteki.</summary>
     public int MaxPeers => _host?.MaxPeers ?? 0;
@@ -47,13 +51,16 @@ public sealed class LinkHost : IAsyncDisposable
         ? []
         : _host.Peers.Select(Describe).ToList();
 
-    public async Task StartAsync(TimeSpan pairingWindow, int maxPeers)
+    /// <summary>Ile czasu maszyna ma na wpisanie kodu, zanim ten sam wygasnie.</summary>
+    public static TimeSpan InvitationLifetime { get; } = TimeSpan.FromMinutes(15);
+
+    public async Task StartAsync(int maxPeers)
     {
         if (_host is not null) throw new InvalidOperationException("Link już działa.");
 
         var options = new LinkOptions
         {
-            PairingWindow = pairingWindow,
+            PairingWindow = InvitationLifetime,
             MaxPeers = maxPeers,
             Log = message => Audit?.Invoke("link", message),
         };
@@ -63,7 +70,10 @@ public sealed class LinkHost : IAsyncDisposable
 
         host.PeerJoined += (_, e) =>
         {
-            Audit?.Invoke("link", $"{Name(e.Peer)}: połączona");
+            // Kod byl jednorazowy i wlasnie zostal zuzyty - nie ma sensu dalej go pokazywac.
+            _invitation = null;
+
+            Audit?.Invoke("link", $"{Name(e.Peer)}: dołączyła kodem zaproszenia");
             PeerJoined?.Invoke(Describe(e.Peer));
             Changed?.Invoke();
         };
@@ -75,14 +85,9 @@ public sealed class LinkHost : IAsyncDisposable
 
         _host = host;
 
-        // Stan sparowania przezywa restart razem z kodem zaproszenia - a ten zdazyl juz wygasnac.
-        // Bez odswiezenia okno pokazywaloby martwy kod, ktorego nikt nie zdola uzyc.
-        if (host.InvitationExpiresAt is null || host.InvitationExpiresAt <= DateTimeOffset.Now)
-            await host.InviteAsync(new InvitationRequest { SingleUse = true, Lifetime = pairingWindow })
-                .ConfigureAwait(false);
-
-        Audit?.Invoke("link", $"Link gotowy dla {host.Peers.Count} sparowanych maszyn, "
-                            + $"kod ważny do {host.InvitationExpiresAt?.LocalDateTime:HH:mm:ss}");
+        // Zadnego kodu na starcie: kod pojawia sie dopiero, gdy operator zaprasza maszyne,
+        // i znika, gdy zostanie uzyty. Inaczej okno pokazywaloby martwy kod z poprzedniej sesji.
+        Audit?.Invoke("link", "Link gotowy");
         Changed?.Invoke();
     }
 
@@ -90,21 +95,25 @@ public sealed class LinkHost : IAsyncDisposable
     /// Nowe zaproszenie dla kolejnej maszyny. Jednorazowe, więc jeden kod wpuszcza jedną maszynę
     /// i nie da się go użyć powtórnie, gdy trafi w niepowołane ręce.
     /// </summary>
-    public async Task<LinkInvitation> InviteAsync(TimeSpan lifetime, string? label = null)
+    public async Task<LinkInvitation> InviteAsync()
     {
         if (_host is null) throw new InvalidOperationException("Link nie działa.");
 
         var invitation = await _host.InviteAsync(new InvitationRequest
         {
-            Label = label ?? "",
-            Lifetime = lifetime,
+            Lifetime = InvitationLifetime,
             SingleUse = true,
         }).ConfigureAwait(false);
 
-        Audit?.Invoke("link", $"Nowy kod zaproszenia, ważny do {invitation.ExpiresAt.LocalDateTime:HH:mm:ss}");
+        _invitation = invitation;
+
+        Audit?.Invoke("link", $"Kod zaproszenia ważny do {invitation.ExpiresAt.LocalDateTime:HH:mm}");
         Changed?.Invoke();
         return invitation;
     }
+
+    /// <summary>Kasuje niewykorzystany kod - po zatrzymaniu linku i przy wystawianiu nowego.</summary>
+    public void DropInvitation() => _invitation = null;
 
     /// <summary>Odpina maszynę: traci dostęp i przy powrocie musi dostać nowy kod.</summary>
     public async Task ForgetPeerAsync(string peerKey)
@@ -125,6 +134,7 @@ public sealed class LinkHost : IAsyncDisposable
 
         var host = _host;
         _host = null;
+        _invitation = null;
         await host.DisposeAsync().ConfigureAwait(false);
 
         Audit?.Invoke("link", "Link zatrzymany");

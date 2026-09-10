@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AgentVirtualHand.Server;
 
-public sealed record ServerOptions(int Port);
+
 
 /// <summary>
 /// Serwer HTTP wystawiający zdalne sterowanie maszyną.
@@ -42,48 +42,32 @@ public sealed class RemoteHttpServer : IAsyncDisposable
     }
 
     public bool IsRunning => _app is not null;
-    public ServerOptions? Options { get; private set; }
+
+    /// <summary>Port przydzielony przez system - potrzebny tylko LinkHostowi do przekazywania zadan.</summary>
+    public int Port { get; private set; }
 
     public event Action<string, string>? Audit;
 
-    public async Task StartAsync(ServerOptions options)
+    /// <summary>
+    /// Wewnetrzna szyna HTTP na 127.0.0.1. Port wybiera system (port 0), bo z zewnatrz
+    /// nikt sie tu nie laczy - jedyna droga prowadzi przez link.
+    /// </summary>
+    public async Task StartAsync()
     {
-        if (_app is not null) throw new InvalidOperationException("Serwer już działa.");
+        if (_app is not null) throw new InvalidOperationException("Serwer juz dziala.");
 
-        // Na tej galezi serwer nie jest wystawiany do sieci: sluchamy wylacznie na loopbacku,
-        // a jedyna droga z zewnatrz prowadzi przez Tailcat.Link (LinkHost).
-        var addresses = new[] { IPAddress.Loopback };
+        var app = BuildApp(IPAddress.Loopback, 0);
+        await app.StartAsync();
 
-        WebApplication? started = null;
-        var errors = new List<Exception>();
-
-        foreach (var address in addresses)
-        {
-            var candidate = BuildApp(address, options.Port);
-            try
-            {
-                await candidate.StartAsync();
-                started = candidate;
-                break;
-            }
-            catch (Exception ex)
-            {
-                // AggregateException zachowuje oryginalne stosy wszystkich prob -
-                // "throw lastError" by je skasowal.
-                errors.Add(new InvalidOperationException($"bind {Describe(address)}:{options.Port}", ex));
-                Audit?.Invoke("server", $"Nie udalo sie zbindowac {Describe(address)}:{options.Port} - {ex.Message}");
-                // Zwalniamy gniazdo, zanim sprobujemy kolejnego adresu.
-                try { await candidate.DisposeAsync().ConfigureAwait(false); } catch { /* i tak probujemy dalej */ }
-            }
-        }
-
-        if (started is null)
-            throw new AggregateException("Nie udalo sie zbindowac zadnego adresu.", errors);
-
-        var app = started;
         _app = app;
-        Options = options;
-        Audit?.Invoke("server", $"API gotowe na 127.0.0.1:{options.Port} (dostep wylacznie przez link)");
+        Port = ResolvePort(app);
+        Audit?.Invoke("server", $"API gotowe na 127.0.0.1:{Port} (dostep wylacznie przez link)");
+    }
+
+    private static int ResolvePort(WebApplication app)
+    {
+        var address = app.Urls.FirstOrDefault();
+        return address is not null && Uri.TryCreate(address, UriKind.Absolute, out var uri) ? uri.Port : 0;
     }
 
     private WebApplication BuildApp(IPAddress address, int port)
@@ -110,16 +94,12 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         return app;
     }
 
-    private static string Describe(IPAddress address) =>
-        Equals(address, IPAddress.IPv6Any) ? "[::] (dual-stack)" :
-        Equals(address, IPAddress.Any) ? "0.0.0.0" : address.ToString();
 
     public async Task StopAsync()
     {
         if (_app is null) return;
         var app = _app;
         _app = null;
-        Options = null;
         _shell.KillAll();
         await app.StopAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
         await app.DisposeAsync().ConfigureAwait(false);

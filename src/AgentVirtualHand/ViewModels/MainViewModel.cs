@@ -1,12 +1,10 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using AgentVirtualHand.Server;
 using AgentVirtualHand.Services;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
 namespace AgentVirtualHand.ViewModels;
@@ -32,9 +30,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly LinkHost _link;
     private readonly DispatcherTimer _timer;
 
-    private string _port = "8787";
     private int _durationMinutes = 60;
-    private Bitmap? _qrImage;
     private string _connectionText = "";
     private string _statusText = "Serwer zatrzymany";
     private IBrush _statusAccent = Brush.Parse("#8B95A7");
@@ -50,6 +46,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _link.Audit += (kind, message) => Log(kind, message);
         _sessions.Changed += () => Dispatcher.UIThread.Post(Refresh);
         _link.Changed += () => Dispatcher.UIThread.Post(Refresh);
+
+        // Przekazanie kodu jest juz decyzja o wpuszczeniu, wiec maszyna, ktora go uzyje,
+        // dostaje dostep od razu. Osobne "otworz dostep" pytaloby o to samo drugi raz.
+        _link.PeerJoined += peer => _sessions.Open(peer.Key, peer.Name);
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => Refresh();
@@ -74,7 +74,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         var saved = AppSettings.Load();
 
-        if (saved.Port is { Length: > 0 }) _port = saved.Port;
         if (saved.DurationMinutes is { } minutes)
         {
             _durationMinutes = Math.Clamp(minutes, 5, 480);
@@ -88,16 +87,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!_settingsLoaded) return;
 
-        new AppSettings(Port, DurationMinutes).Save();
+        new AppSettings(DurationMinutes: DurationMinutes).Save();
     }
 
     public string MachineName => Environment.MachineName;
-
-    public string Port
-    {
-        get => _port;
-        set { if (Set(ref _port, value)) SaveSettings(); }
-    }
 
     public int DurationMinutes
     {
@@ -122,19 +115,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool HasInvitation => IsRunning && InvitationCode.Length > 0;
 
+    /// <summary>Link dziala, ale zaden kod nie czeka na uzycie.</summary>
+    public bool ShowInvitePrompt => IsRunning && InvitationCode.Length == 0;
+
+    public string InvitationHint => _link.InvitationExpiresAt is { } expires
+        ? $"wazny do {expires.LocalDateTime:HH:mm}, wpuszcza jedna maszyne na {DurationText}"
+        : "";
+
     public bool HasMachines => Machines.Count > 0;
     public bool HasNoMachines => IsRunning && Machines.Count == 0;
 
     /// <summary>Podsumowanie w pasku: ile maszyn faktycznie pracuje.</summary>
-    public string MachinesSummary => Machines.Count == 0
-        ? "brak sparowanych maszyn"
-        : $"{Machines.Count(m => m.HasAccess)} z {Machines.Count} z dostepem";
-
-    public Bitmap? QrImage
+    public string MachinesSummary => Machines.Count switch
     {
-        get => _qrImage;
-        private set => Set(ref _qrImage, value);
-    }
+        0 => "nikt nie pracuje",
+        1 => "1 maszyna",
+        _ => $"{Machines.Count} maszyn",
+    };
 
     public string ConnectionText
     {
@@ -175,64 +172,61 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _shell.KillAll();
             await _link.StopAsync();
             await _server.StopAsync();
-            QrImage = null;
             ConnectionText = "";
-            Hint = "Link zatrzymany - maszyna jest odcięta.";
+            ClipboardPayload = "";
+            Hint = "Link zatrzymany - maszyna jest odcieta.";
         }
         else
         {
-            if (!int.TryParse(Port, out var port) || port is < 1 or > 65535)
-            {
-                Hint = "Port musi być liczbą z zakresu 1-65535.";
-                return;
-            }
-
-            // Bez wstepnego testu "czy port wolny": otwarte i zamkniete gniazdo probne
-            // potrafi jeszcze trzymac port, gdy sekunde pozniej binduje sie Kestrel.
-            // Zajetosc portu i tak zglosi sam start serwera.
             try
             {
-                await _server.StartAsync(new ServerOptions(port));
-                _link.LoopbackPort = port;
-                await _link.StartAsync(InvitationWindow, MaxMachines);
-                RebuildInvitationArtifacts();
-                Hint = "Link działa. Przekaż kod drugiej maszynie, potem otwórz dostęp.";
+                await _server.StartAsync();
+                _link.LoopbackPort = _server.Port;
+                await _link.StartAsync(MaxMachines);
+                Hint = "Link dziala. Zapros maszyne, ktora ma tu pracowac.";
             }
             catch (Exception ex)
             {
-                var dump = DumpException("start serwera", port, ex);
-                var reason = Explain(port, ex);
-                Log("deny", "Nie udało się wystartować: " + reason);
-                Hint = reason + (dump is null ? "" : $"  |  szczegóły zapisane w: {dump}");
+                var dump = DumpException("start linku", ex);
+                Log("deny", "Nie udalo sie wystartowac: " + ex.Message);
+                Hint = "Blad startu: " + ex.Message + (dump is null ? "" : $"  |  szczegoly w: {dump}");
             }
         }
 
         Refresh();
     }
 
-    /// <summary>Kod zaproszenia jest jednorazowy - po sparowaniu druga maszyna wraca bez niego.</summary>
-    public static TimeSpan InvitationWindow => TimeSpan.FromMinutes(15);
-
-    /// <summary>Ile maszyn moze byc sparowanych naraz.</summary>
+    /// <summary>Ile maszyn moze pracowac naraz.</summary>
     public const int MaxMachines = 16;
 
     /// <summary>
-    /// Otwiera albo przedluza okno dostepu dla jednej maszyny. Sparowanie potwierdza
-    /// tozsamosc, ale wpuszczenie jest osobna decyzja i wygasa samo.
+    /// Wystawia kod dla jednej maszyny. Przekazanie kodu jest juz decyzja o wpuszczeniu:
+    /// maszyna, ktora go uzyje, dostaje dostep na ustawiony czas, a kod znika.
     /// </summary>
-    public void ToggleAccess(MachineRow machine)
+    public async Task InviteAsync()
     {
-        if (machine.HasAccess)
+        if (!IsRunning) return;
+
+        try
         {
-            _sessions.Extend(machine.Key, TimeSpan.FromMinutes(DurationMinutes));
-            Hint = $"Dostep dla {machine.Name} przedluzony.";
+            var invitation = await _link.InviteAsync();
+            ConnectionText = invitation.Code.Value;
+            ClipboardPayload = invitation.Code.Value;
+            Hint = $"Kod wazny do {invitation.ExpiresAt.LocalDateTime:HH:mm}. "
+                 + $"Maszyna, ktora go uzyje, dostanie dostep na {DurationText}.";
         }
-        else
+        catch (Exception ex)
         {
-            var session = _sessions.Open(machine.Key, machine.Name);
-            Hint = $"{machine.Name} ma dostep do {session.ExpiresAt:HH:mm}. Skopiuj instrukcje i wklej ja w Claude Code.";
+            Hint = ex.Message;
         }
 
+        Refresh();
+    }
+
+    public void ExtendAccess(MachineRow machine)
+    {
+        _sessions.Extend(machine.Key, TimeSpan.FromMinutes(DurationMinutes));
+        Hint = $"Dostep dla {machine.Name} przedluzony.";
         Refresh();
     }
 
@@ -241,57 +235,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _sessions.Revoke(machine.Key, "odciete recznie z okna");
         Hint = $"{machine.Name} stracila dostep. Pozostale maszyny pracuja dalej.";
         Refresh();
-    }
-
-    /// <summary>Odpina maszyne na stale - powrot wymaga nowego kodu zaproszenia.</summary>
-    public async Task ForgetMachineAsync(MachineRow machine)
-    {
-        try
-        {
-            await _link.ForgetPeerAsync(machine.Key);
-            Hint = $"{machine.Name} odpieta. Zeby wrocila, przekaz jej nowy kod.";
-        }
-        catch (Exception ex)
-        {
-            Hint = ex.Message;
-        }
-
-        Refresh();
-    }
-
-    /// <summary>Nowy kod zaproszenia dla kolejnej maszyny. Jednorazowy, poprzedni traci waznosc.</summary>
-    public async Task NewInvitationAsync()
-    {
-        if (!IsRunning) return;
-
-        try
-        {
-            await _link.InviteAsync(InvitationWindow);
-            RebuildInvitationArtifacts();
-            Hint = "Nowy kod zaproszenia. Wpuszcza jedna maszyne i traci waznosc po uzyciu.";
-        }
-        catch (Exception ex)
-        {
-            Hint = ex.Message;
-        }
-
-        Refresh();
-    }
-
-    private void RebuildInvitationArtifacts()
-    {
-        var code = _link.InvitationCode;
-        if (code.Length == 0)
-        {
-            QrImage = null;
-            ConnectionText = "";
-            ClipboardPayload = "";
-            return;
-        }
-
-        QrImage = QrGenerator.Create(code);
-        ConnectionText = code;
-        ClipboardPayload = code;
     }
 
     /// <summary>Odcina wszystkie maszyny naraz - przycisk paniki.</summary>
@@ -324,14 +267,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         SyncMachines();
 
-        var working = Machines.Count(m => m.HasAccess);
-
-        var (statusText, statusAccent) = (IsRunning, working, Machines.Count) switch
+        var (statusText, statusAccent) = (IsRunning, Machines.Count) switch
         {
-            (false, _, _) => ("Zatrzymany", "#8B95A7"),
-            (true, 0, 0) => ("Czeka na maszyny", "#4C8DFF"),
-            (true, 0, _) => ("Nikt nie ma dost\u0119pu", "#FFB454"),
-            _ => (working == 1 ? "1 maszyna pracuje" : $"{working} maszyny pracuj\u0105", "#63D19B"),
+            (false, _) => ("Zatrzymany", "#8B95A7"),
+            (true, 0) => ("Nikt nie pracuje", "#4C8DFF"),
+            (true, 1) => ("1 maszyna pracuje", "#63D19B"),
+            (true, var n) => ($"{n} maszyny pracują", "#63D19B"),
         };
 
         StatusText = statusText;
@@ -340,6 +281,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(InvitationCode));
         OnPropertyChanged(nameof(HasInvitation));
+        OnPropertyChanged(nameof(ShowInvitePrompt));
+        OnPropertyChanged(nameof(InvitationHint));
         OnPropertyChanged(nameof(ServerButtonText));
         OnPropertyChanged(nameof(HasMachines));
         OnPropertyChanged(nameof(HasNoMachines));
@@ -357,15 +300,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         for (var i = Machines.Count - 1; i >= 0; i--)
         {
             if (peers.Any(peer => peer.Key == Machines[i].Key)) continue;
+
             Machines.RemoveAt(i);
         }
 
         foreach (var peer in peers)
         {
             var session = _sessions.ForPeer(peer.Key);
-            var remaining = _sessions.RemainingFor(peer.Key);
             var existing = Machines.FirstOrDefault(m => m.Key == peer.Key);
 
+            // Sparowana maszyna bez okna dostepu nic nie moze, wiec nie zajmuje miejsca na liscie.
+            if (session is null)
+            {
+                if (existing is not null) Machines.Remove(existing);
+                continue;
+            }
+
+            var remaining = _sessions.RemainingFor(peer.Key);
             if (existing is null) Machines.Add(new MachineRow(peer, session, remaining));
             else existing.Update(peer, session, remaining);
         }
@@ -375,7 +326,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Zapisuje pełny wyjątek (ze stosem i wyjątkami wewnętrznymi) obok pliku .exe.
     /// Sam Message przy błędach gniazd nie mówi, która warstwa go zgłosiła.
     /// </summary>
-    private static string? DumpException(string what, int port, Exception ex)
+    private static string? DumpException(string what, Exception ex)
     {
         try
         {
@@ -384,19 +335,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var sb = new StringBuilder();
             sb.AppendLine(new string('=', 70));
-            sb.AppendLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {what}  port={port}");
+            sb.AppendLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {what}");
             sb.AppendLine($"maszyna={Environment.MachineName} uzytkownik={Environment.UserName} os={Environment.OSVersion}");
             sb.AppendLine($"proces={Environment.ProcessPath} 64bit={Environment.Is64BitProcess}");
             sb.AppendLine(new string('-', 70));
-
-            // Sonda sama binduje port, wiec domyslnie wylaczona - inaczej utrudnialaby
-            // kolejna probe startu. Wlacza sie zmienna srodowiskowa AVH_DIAG=1.
-            if (Environment.GetEnvironmentVariable("AVH_DIAG") == "1")
-            {
-                try { sb.AppendLine(SocketProbe.Diagnose(port)); }
-                catch (Exception probeError) { sb.AppendLine($"test gniazd nie wykonany: {probeError.Message}"); }
-                sb.AppendLine(new string('-', 70));
-            }
 
             AppendException(sb, ex);
 
@@ -409,34 +351,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Zamienia wyjątek startu serwera na komunikat dla użytkownika.</summary>
-    private static string Explain(int port, Exception ex)
-    {
-        var socketError = FindSocketError(ex);
-        return socketError switch
-        {
-            SocketError.AddressAlreadyInUse => $"Port {port} jest zajęty przez inny program - wybierz inny port.",
-            SocketError.AccessDenied => $"System odmówił dostępu do portu {port}. Sprawdź, czy port nie jest zarezerwowany "
-                                      + "(netsh int ipv4 show excludedportrange protocol=tcp) i czy nie blokuje go program ochronny.",
-            _ => "Błąd startu serwera: " + ex.Message,
-        };
-    }
-
-    private static SocketError? FindSocketError(Exception ex) => ex switch
-    {
-        SocketException se => se.SocketErrorCode,
-        AggregateException agg => agg.InnerExceptions.Select(FindSocketError).FirstOrDefault(e => e is not null),
-        { InnerException: { } inner } => FindSocketError(inner),
-        _ => null,
-    };
-
     /// <summary>Rozwija lancuch InnerException oraz wszystkie galezie AggregateException.</summary>
     private static void AppendException(StringBuilder sb, Exception ex, int depth = 0)
     {
         var indent = new string(' ', depth * 2);
         sb.AppendLine($"{indent}[{ex.GetType().FullName}] {ex.Message}");
-        if (ex is SocketException se)
-            sb.AppendLine($"{indent}    SocketErrorCode={se.SocketErrorCode} ErrorCode={se.ErrorCode} NativeErrorCode={se.NativeErrorCode}");
         if (ex.StackTrace is { } trace) sb.AppendLine(trace);
         sb.AppendLine(new string('-', 70));
 

@@ -67,9 +67,16 @@
                                 IsEnabled="{Binding IsOpen}" />
                         <Button Classes="quiet" Content="{Binding ToggleText}" Click="OnToggle"
                                 IsEnabled="{Binding NotBusy}" />
-                        <Button Classes="quiet" Content="Nowy token" Click="OnRotateToken"
-                                IsEnabled="{Binding IsOpen}" />
-                        <Button Classes="danger" Content="Usuń" Click="OnRemove" />
+                        <!-- Rzadkie akcje pod menu: zajmowaly tyle samo miejsca co te uzywane stale -->
+                        <Button Classes="quiet" Content="⋯" Width="34" ToolTip.Tip="Więcej">
+                          <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                              <MenuItem Header="Nowy token" Click="OnRotateToken"
+                                        IsEnabled="{Binding IsOpen}" />
+                              <MenuItem Header="Usuń komputer" Click="OnRemove" />
+                            </MenuFlyout>
+                          </Button.Flyout>
+                        </Button>
                       </StackPanel>
                     </Grid>
                   </Grid>

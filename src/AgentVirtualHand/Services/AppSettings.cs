@@ -7,7 +7,7 @@ namespace AgentVirtualHand.Services;
 /// Czytane i pisane ręcznie (JsonDocument / Utf8JsonWriter), żeby nie zależeć od refleksji -
 /// aplikacja jest publikowana jako pojedynczy plik.
 /// </summary>
-public sealed record AppSettings(string? Port, int? DurationMinutes)
+public sealed record AppSettings(int? DurationMinutes)
 {
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -23,7 +23,6 @@ public sealed record AppSettings(string? Port, int? DurationMinutes)
             var root = doc.RootElement;
 
             return new AppSettings(
-                Text(root, "port"),
                 root.TryGetProperty("durationMinutes", out var dur) && dur.TryGetInt32(out var minutes)
                     ? minutes
                     : null);
@@ -44,7 +43,6 @@ public sealed record AppSettings(string? Port, int? DurationMinutes)
             using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
 
             writer.WriteStartObject();
-            if (Port is not null) writer.WriteString("port", Port);
             if (DurationMinutes is { } minutes) writer.WriteNumber("durationMinutes", minutes);
             writer.WriteEndObject();
         }
@@ -54,10 +52,6 @@ public sealed record AppSettings(string? Port, int? DurationMinutes)
         }
     }
 
-    private static AppSettings Empty => new(null, null);
+    private static AppSettings Empty => new(DurationMinutes: null);
 
-    private static string? Text(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
 }

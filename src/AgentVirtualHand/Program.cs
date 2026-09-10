@@ -29,7 +29,7 @@ internal static class Program
 
     /// <summary>
     /// Tryb bez GUI - na maszynie bez pulpitu (serwer, SSH). Wypisuje kod zaproszenia na konsole.
-    /// Użycie: AgentVirtualHand --headless [--port 8787] [--minutes 60]
+    /// Użycie: avh --headless [--minutes 60]
     /// </summary>
     private static async Task<int> RunHeadless(string[] args)
     {
@@ -37,20 +37,20 @@ internal static class Program
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) AttachConsole(-1);
         try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch (IOException) { /* brak konsoli */ }
 
-        var port = ArgValue(args, "--port", 8787);
         var minutes = ArgValue(args, "--minutes", 60);
 
         var sessions = new SessionManager { SessionDuration = TimeSpan.FromMinutes(minutes) };
         var shell = new ShellRunner();
         var server = new RemoteHttpServer(sessions, shell);
-        await using var link = new LinkHost(sessions) { LoopbackPort = port };
+        await using var link = new LinkHost(sessions);
 
         sessions.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
         server.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
         link.Audit += (kind, message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {kind,-6} {message}");
 
-        await server.StartAsync(new ServerOptions(port));
-        await link.StartAsync(TimeSpan.FromMinutes(15), maxPeers: 16);
+        await server.StartAsync();
+        link.LoopbackPort = server.Port;
+        await link.StartAsync(maxPeers: 16);
 
         // Tryb headless nie ma komu klikac "otworz dostep", wiec kazda maszyna,
         // ktora sie sparuje, dostaje okno od razu po dolaczeniu. Kod jest jednorazowy,
@@ -60,15 +60,17 @@ internal static class Program
             sessions.Open(peer.Key, peer.Name);
             _ = Task.Run(async () =>
             {
-                var next = await link.InviteAsync(TimeSpan.FromMinutes(15));
+                var next = await link.InviteAsync();
                 Console.WriteLine();
                 Console.WriteLine($"  Kod dla kolejnej maszyny:  {next.Code.Value}");
                 Console.WriteLine();
             });
         };
 
+        var first = await link.InviteAsync();
+
         Console.WriteLine();
-        Console.WriteLine($"  Kod zaproszenia:  {link.InvitationCode}");
+        Console.WriteLine($"  Kod zaproszenia:  {first.Code.Value}");
         Console.WriteLine("  Druga maszyna:    avh-link join <kod>   (kod jednorazowy, ważny 15 minut)");
         Console.WriteLine($"  Czas dostępu:     {minutes} min");
         Console.WriteLine("  Instrukcja:       avh-link help");
