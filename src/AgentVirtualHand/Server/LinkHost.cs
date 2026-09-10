@@ -123,12 +123,14 @@ public sealed class LinkHost : IAsyncDisposable
     public async Task ForgetPeerAsync(string peerKey)
     {
         if (_host is null) return;
-        if (_host.Peers.FirstOrDefault(p => p.Key.ToString() == peerKey) is not { } peer) return;
 
-        _sessions.Revoke(peerKey, "machine unpaired");
-        await _host.ForgetPeerAsync(peer).ConfigureAwait(false);
+        // Revoke najpierw, zeby sesja znikla nawet gdy Tailcat juz zdjal rozlaczonego peera.
+        _sessions.Revoke(peerKey, "machine deleted");
 
-        Audit?.Invoke("link", $"{Name(peer)}: unpaired, coming back needs a new code");
+        var peer = _host.Peers.FirstOrDefault(p => p.Key.ToString() == peerKey);
+        if (peer is not null) await _host.ForgetPeerAsync(peer).ConfigureAwait(false);
+
+        Audit?.Invoke("link", $"{(peer is null ? "machine" : Name(peer))}: deleted, coming back needs a new code");
         Changed?.Invoke();
     }
 

@@ -46,7 +46,7 @@
         <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoConnections}"
                    Text="No computers yet. On the machine you want to control, start the link and paste its invite code here. Each computer gets its own address and token, so a prompt made for one does not reach the others." />
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasConnections}">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasConnections}" Padding="0,0,12,0">
           <ItemsControl ItemsSource="{Binding Connections}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:ConnectionRow">
@@ -95,7 +95,7 @@
 
       <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="24,18,24,0" Height="170">
         <TextBlock Grid.Row="0" Classes="k" Text="log" Margin="0,0,0,10" />
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
           <ItemsControl ItemsSource="{Binding Logs}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:LogEntry">

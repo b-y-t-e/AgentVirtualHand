@@ -78,7 +78,7 @@
         <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoMachines}"
                    Text="Nobody is working on this machine right now. A machine shows up here once it uses an invite code, or when one paired earlier checks back in." />
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasMachines}">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasMachines}" Padding="0,0,12,0">
           <ItemsControl ItemsSource="{Binding Machines}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:MachineRow">
@@ -102,8 +102,11 @@
                                 IsVisible="{Binding !HasAccess}" />
                         <Button Content="Extend" Click="OnExtendAccess"
                                 IsVisible="{Binding HasAccess}" />
-                        <Button Classes="danger" Content="Cut off" Click="OnRevokeAccess"
+                        <!-- Cut off is reversible (machine returns as "waiting to be let in"), so it stays neutral -->
+                        <Button Content="Cut off" Click="OnRevokeAccess"
                                 IsVisible="{Binding HasAccess}" />
+                        <!-- Delete is permanent: red, always available -->
+                        <Button Classes="danger" Content="Delete" Click="OnDeleteMachine" />
                       </StackPanel>
                     </Grid>
                   </Grid>
@@ -132,7 +135,7 @@
           <TextBlock Grid.Column="0" Classes="k" Text="log" />
           <TextBlock Grid.Column="2" Classes="k" Text="{Binding Logs.Count}" />
         </Grid>
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
           <ItemsControl ItemsSource="{Binding Logs}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:LogEntry">

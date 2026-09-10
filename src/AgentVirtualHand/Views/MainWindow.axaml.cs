@@ -99,6 +99,12 @@ public partial class MainWindow : Window
         Model.RevokeAccess(machine);
     }
 
+    private async void OnDeleteMachine(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null || RowOf(sender) is not { } machine) return;
+        await Model.DeleteMachineAsync(machine);
+    }
+
     private async void OnInvite(object? sender, RoutedEventArgs e)
     {
         if (Model is null) return;

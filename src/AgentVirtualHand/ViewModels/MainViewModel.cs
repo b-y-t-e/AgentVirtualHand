@@ -254,8 +254,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void RevokeAccess(MachineRow machine)
     {
-        _sessions.Revoke(machine.Key, "odciete recznie z okna");
+        _sessions.Revoke(machine.Key, "cut off manually from the window");
         Hint = $"{machine.Name} lost access. Other machines keep working.";
+        Refresh();
+    }
+
+    /// <summary>Usuwa maszyne na stale: traci dostep i sparowanie, wroci dopiero z nowym kodem.</summary>
+    public async Task DeleteMachineAsync(MachineRow machine)
+    {
+        try
+        {
+            await _link.ForgetPeerAsync(machine.Key);
+            Hint = $"{machine.Name} deleted. It needs a new invite code to come back.";
+        }
+        catch (Exception ex)
+        {
+            Hint = ex.Message;
+        }
+
         Refresh();
     }
 
