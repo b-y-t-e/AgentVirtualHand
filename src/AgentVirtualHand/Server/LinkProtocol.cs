@@ -23,6 +23,9 @@ public sealed record LinkRequest
     public string? BodyBase64 { get; init; }
 
     public string? ContentType { get; init; }
+
+    /// <summary>Jedno zdanie intencji po ludzku - trafia do logu obok komendy.</summary>
+    public string? Note { get; init; }
 }
 
 public sealed record LinkResponse

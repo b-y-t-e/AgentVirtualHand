@@ -64,6 +64,7 @@ public static class Program
     private static async Task<int> CallAsync(string[] args)
     {
         var (request, saveTo) = Build(args);
+        if (Option(args, "--note") is { Length: > 0 } note) request = request with { Note = note };
         var response = await LinkDaemon.SendAsync(request, Store(args), TimeSpan.FromMinutes(10));
 
         return await WriteAsync(response, saveTo);
@@ -282,10 +283,13 @@ public static class Program
     /// </summary>
     private static LinkOptions Options(string[] args)
     {
+        // Heartbeat czesciej niz 10-sekundowy prog ciszy transportu - inaczej bezczynny
+        // link odpadalby i wstawal co 10 s.
+        var heartbeat = TimeSpan.FromSeconds(5);
         var root = Store(args);
         return root is null
-            ? new LinkOptions()
-            : new LinkOptions { Store = new FileLinkStore(root, SecretProtector.ForCurrentPlatform()) };
+            ? new LinkOptions { HeartbeatInterval = heartbeat }
+            : new LinkOptions { HeartbeatInterval = heartbeat, Store = new FileLinkStore(root, SecretProtector.ForCurrentPlatform()) };
     }
 
     private static string? Store(string[] args) =>
@@ -350,6 +354,7 @@ public static class Program
           avh-link api                        remote machine's API reference
 
         EXTRA
+          --note "<sentence>"                 one-line human intent, shown in the machine's log
           --store <dir>                       different place for the pairing (or AVH_LINK_STORE)
         """);
 }

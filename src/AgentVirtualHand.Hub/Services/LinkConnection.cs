@@ -67,6 +67,8 @@ public sealed class LinkConnection : IAsyncDisposable
         var options = new LinkOptions
         {
             Store = new FileLinkStore(Entry.StoreRoot, SecretProtector.ForCurrentPlatform()),
+            // Heartbeat czesciej niz 10-sekundowy prog ciszy - inaczej bezczynny link odpada co 10 s.
+            HeartbeatInterval = TimeSpan.FromSeconds(5),
             Log = message => Audit?.Invoke("link", $"{Entry.Name}: {message}"),
         };
 
@@ -231,6 +233,7 @@ public sealed class LinkConnection : IAsyncDisposable
             Body = body.Length > 0 && isText ? Encoding.UTF8.GetString(body) : null,
             BodyBase64 = body.Length > 0 && !isText ? Convert.ToBase64String(body) : null,
             ContentType = contentType,
+            Note = context.Request.Headers["X-AVH-Note"].ToString() is { Length: > 0 } note ? note : null,
         };
 
         try

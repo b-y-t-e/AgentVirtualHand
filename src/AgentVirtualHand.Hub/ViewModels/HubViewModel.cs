@@ -13,6 +13,7 @@ public sealed record LogEntry(string Time, string Kind, string Message)
     public IBrush Accent => Brush.Parse(Kind switch
     {
         "deny" => "#FF7B72",
+        "note" => "#EBB866",
         "link" => "#4C8DFF",
         "pair" => "#63D19B",
         _ => "#8B95A7",

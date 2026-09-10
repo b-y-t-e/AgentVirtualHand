@@ -17,6 +17,10 @@ public static class HelpText
         `401` and you have to ask the owner to grant access again in their window.
         `502` means the link is briefly down, not that you lack permission.
 
+        On EVERY request add a header `X-AVH-Note: <one short sentence>` in plain language saying
+        why you run it. It shows up in the owner's live log next to the raw command, so they can
+        follow what you are doing. Keep it to a single readable sentence.
+
         Several clients can work on one machine at once, each with its own access window.
         `GET /api/session` reports how many others are connected in `otherMachinesConnected` -
         expect that someone may be changing the same files at the same time.

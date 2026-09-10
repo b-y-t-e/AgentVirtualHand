@@ -369,6 +369,11 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         }
 
         http.Items[CallerKey] = session;
+
+        // Intencja od agenta: czytelne zdanie, ktore ma sie pojawic w logu obok surowej komendy.
+        var note = http.Request.Headers["X-AVH-Note"].ToString();
+        if (!string.IsNullOrWhiteSpace(note)) Audit?.Invoke("note", Trim(note));
+
         return await next(ctx);
     }
 

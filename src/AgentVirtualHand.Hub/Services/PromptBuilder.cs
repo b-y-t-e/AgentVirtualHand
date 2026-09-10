@@ -10,6 +10,7 @@ public static class PromptBuilder
         Shell + files on machine "{{connection.Entry.Name}}" - the only machine you can reach.
         You act as its owner; confirm destructive actions. Paths: use / or double every backslash ("C:/Temp" or "C:\\Temp").
         All calls: {{connection.BaseUrl}}<path> -H "Authorization: Bearer {{connection.Token}}"
+        On EVERY call also add -H "X-AVH-Note: <one short sentence, plain language, why you run this>" - the owner reads it in the machine's log.
         system  GET /api/system  |  session  GET /api/session  |  end  POST /api/session/end  |  full ref  GET /api/help
         exec    POST /api/exec {"command","cwd","timeoutSeconds":120} -> exitCode/stdout/stderr/timedOut
         long    POST /api/exec/start -> {"id"} ; GET /api/exec/<id>?outOffset=N&errOffset=N ; POST /api/exec/<id>/stdin (text) ; POST /api/exec/<id>/kill

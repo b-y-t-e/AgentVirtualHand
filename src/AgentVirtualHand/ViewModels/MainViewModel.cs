@@ -15,6 +15,7 @@ public sealed record LogEntry(string Time, string Kind, string Message)
     {
         "deny" => "#FF7B72",
         "revoke" => "#FFB454",
+        "note" => "#EBB866",
         "pair" => "#63D19B",
         "exec" => "#4C8DFF",
         "fs" => "#C39BFF",

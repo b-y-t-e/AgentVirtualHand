@@ -63,6 +63,9 @@ public sealed class LinkHost : IAsyncDisposable
             PairingWindow = InvitationLifetime,
             MaxPeers = maxPeers,
             Store = new HiddenLinkStore(),
+            // Domyslne 15 s to za rzadko: transport zrywa lacze po ~10 s ciszy, wiec
+            // bezczynny link odpadalby i wstawal co 10 s. 5 s trzyma go zywym.
+            HeartbeatInterval = TimeSpan.FromSeconds(5),
             Log = message => Audit?.Invoke("link", message),
         };
 
@@ -189,6 +192,8 @@ public sealed class LinkHost : IAsyncDisposable
 
         using var message = new HttpRequestMessage(new HttpMethod(call.Method), url);
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (!string.IsNullOrWhiteSpace(call.Note))
+            message.Headers.TryAddWithoutValidation("X-AVH-Note", call.Note);
 
         if (call.BodyBase64 is { Length: > 0 })
         {
