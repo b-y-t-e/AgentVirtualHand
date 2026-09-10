@@ -64,7 +64,7 @@ public sealed class SessionManager
     /// Otwiera okno dostępu dla sparowanej maszyny. Sparowanie potwierdza tożsamość,
     /// ale wpuszczenie jej jest osobną decyzją operatora i tak samo wygasa.
     /// </summary>
-    public RemoteSession Open(string peerKey, string clientName)
+    public RemoteSession Open(string peerKey, string clientName, TimeSpan? window = null)
     {
         RemoteSession created;
 
@@ -78,7 +78,7 @@ public sealed class SessionManager
                 Token: GenerateToken(),
                 PeerKey: peerKey,
                 IssuedAt: now,
-                ExpiresAt: now + SessionDuration,
+                ExpiresAt: now + (window ?? SessionDuration),
                 ClientName: string.IsNullOrWhiteSpace(clientName) ? "unknown client" : clientName);
 
             _byPeer[peerKey] = created;

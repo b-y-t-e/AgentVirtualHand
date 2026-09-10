@@ -11,7 +11,7 @@
         FontSize="13">
 
   <Panel>
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
 
       <!-- Status bar: whose machine and who works on it now -->
       <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto" Height="44" Margin="24,0">
@@ -48,7 +48,16 @@
       <!-- Link running, no code waiting to be used -->
       <StackPanel Grid.Row="1" Margin="24,26,24,24" Spacing="18" IsVisible="{Binding ShowInvitePrompt}">
         <TextBlock Classes="ui"
-                   Text="Invite the machine that should work here. The code lets one machine in for the time set below, then disappears." />
+                   Text="Invite the machine that should work here. The code lets one machine in for the chosen time, then disappears." />
+        <Grid ColumnDefinitions="Auto,*">
+          <TextBlock Grid.Column="0" Classes="k" Text="access for" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+            <Button Content="15 min" Tag="15"  Classes.primary="{Binding Dur15}"  Click="OnPickDuration" />
+            <Button Content="1 h"    Tag="60"  Classes.primary="{Binding Dur60}"  Click="OnPickDuration" />
+            <Button Content="4 h"    Tag="240" Classes.primary="{Binding Dur240}" Click="OnPickDuration" />
+            <Button Content="8 h"    Tag="480" Classes.primary="{Binding Dur480}" Click="OnPickDuration" />
+          </StackPanel>
+        </Grid>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Classes="primary" Content="Invite machine" Width="170" Click="OnInvite" />
           <Button Content="Stop link" Click="OnToggleServer" />
@@ -101,10 +110,27 @@
                       <TextBlock Grid.Column="0" Classes="val" Text="{Binding DetailText}"
                                  VerticalAlignment="Center" />
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Classes="primary" Content="Let in" Click="OnAdmitMachine"
-                                IsVisible="{Binding !HasAccess}" />
-                        <Button Content="Extend" Click="OnExtendAccess"
-                                IsVisible="{Binding HasAccess}" />
+                        <!-- Let in / Extend open a small menu to pick how long -->
+                        <Button Classes="primary" Content="Let in" IsVisible="{Binding !HasAccess}">
+                          <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                              <MenuItem Header="15 min" Tag="15"  Click="OnAdmitFor" />
+                              <MenuItem Header="1 h"    Tag="60"  Click="OnAdmitFor" />
+                              <MenuItem Header="4 h"    Tag="240" Click="OnAdmitFor" />
+                              <MenuItem Header="8 h"    Tag="480" Click="OnAdmitFor" />
+                            </MenuFlyout>
+                          </Button.Flyout>
+                        </Button>
+                        <Button Content="Extend" IsVisible="{Binding HasAccess}">
+                          <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                              <MenuItem Header="+15 min" Tag="15"  Click="OnExtendFor" />
+                              <MenuItem Header="+1 h"    Tag="60"  Click="OnExtendFor" />
+                              <MenuItem Header="+4 h"    Tag="240" Click="OnExtendFor" />
+                              <MenuItem Header="+8 h"    Tag="480" Click="OnExtendFor" />
+                            </MenuFlyout>
+                          </Button.Flyout>
+                        </Button>
                         <!-- Cut off is reversible (machine returns as "waiting to be let in"), so it stays neutral -->
                         <Button Content="Cut off" Click="OnRevokeAccess"
                                 IsVisible="{Binding HasAccess}" />
@@ -122,19 +148,8 @@
         </ScrollViewer>
       </Grid>
 
-      <!-- The only setting: how long the code lets a machine in - round presets, one tap -->
-      <Grid Grid.Row="4" Margin="24,16,24,10" ColumnDefinitions="Auto,*">
-        <TextBlock Grid.Column="0" Classes="k" Text="access for" VerticalAlignment="Center" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-          <Button Content="15 min" Tag="15"  Classes.primary="{Binding Dur15}"  Click="OnPickDuration" />
-          <Button Content="1 h"    Tag="60"  Classes.primary="{Binding Dur60}"  Click="OnPickDuration" />
-          <Button Content="4 h"    Tag="240" Classes.primary="{Binding Dur240}" Click="OnPickDuration" />
-          <Button Content="8 h"    Tag="480" Classes.primary="{Binding Dur480}" Click="OnPickDuration" />
-        </StackPanel>
-      </Grid>
-
       <!-- Log -->
-      <Grid Grid.Row="5" RowDefinitions="Auto,*" Margin="24,8,24,0" Height="160">
+      <Grid Grid.Row="4" RowDefinitions="Auto,*" Margin="24,16,24,0" Height="160">
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
           <TextBlock Grid.Column="0" Classes="k" Text="log" />
           <TextBlock Grid.Column="2" Classes="k" Text="{Binding Logs.Count}" />
@@ -157,7 +172,7 @@
         </ScrollViewer>
       </Grid>
 
-      <Border Grid.Row="6" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
+      <Border Grid.Row="5" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
               Padding="24,12" Margin="0,16,0,0">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" Classes="ui" FontSize="12.5" MaxWidth="520"

@@ -252,16 +252,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Nowy kod jest potrzebny tylko dla maszyny, ktorej jeszcze nigdy tu nie bylo -
     /// przy tej tozsamosc zostala potwierdzona wczesniej.
     /// </summary>
-    public void AdmitMachine(MachineRow machine)
+    public void AdmitMachine(MachineRow machine, int minutes)
     {
-        var session = _sessions.Open(machine.Key, machine.Name);
+        var session = _sessions.Open(machine.Key, machine.Name, TimeSpan.FromMinutes(minutes));
         Hint = $"{machine.Name} works until {session.ExpiresAt:HH:mm}.";
         Refresh();
     }
 
-    public void ExtendAccess(MachineRow machine)
+    public void ExtendAccess(MachineRow machine, int minutes)
     {
-        _sessions.Extend(machine.Key, TimeSpan.FromMinutes(DurationMinutes));
+        _sessions.Extend(machine.Key, TimeSpan.FromMinutes(minutes));
         Hint = $"Access for {machine.Name} extended.";
         Refresh();
     }
