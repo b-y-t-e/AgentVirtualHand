@@ -35,6 +35,7 @@
     <Compile Include="..\AgentVirtualHand\Services\PasswordGate.cs" Link="PasswordGate.cs" />
     <Compile Include="..\AgentVirtualHand\ViewModels\LockViewModel.cs" Link="LockViewModel.cs" />
     <Compile Include="..\AgentVirtualHand\Services\AppPaths.cs" Link="AppPaths.cs" />
+    <Compile Include="..\AgentVirtualHand\Services\SingleInstance.cs" Link="SingleInstance.cs" />
     <AvaloniaResource Include="..\AgentVirtualHand\Styles\Theme.axaml" Link="Styles\Theme.axaml" />
   </ItemGroup>
 

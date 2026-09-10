@@ -10,6 +10,23 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Jedna kopia na sesje: dwa hosty bilyby sie o tozsamosc wezla i plik parowania.
+        // GUI i --headless dziela ten sam link, wiec jeden wspolny uchwyt.
+        if (!SingleInstance.TryAcquire("avh-host"))
+        {
+            var headless = args.Contains("--headless");
+            if (headless)
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) AttachConsole(-1);
+                Console.Error.WriteLine("AVH is already running on this machine.");
+            }
+            else
+            {
+                SingleInstance.WarnAlreadyRunning("AVH", "AVH is already running on this machine.");
+            }
+            return 1;
+        }
+
         if (args.Contains("--headless"))
             return RunHeadless(args).GetAwaiter().GetResult();
 

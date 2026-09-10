@@ -157,7 +157,7 @@ public sealed class HubViewModel : INotifyPropertyChanged
         var code = NewCode.Trim();
         if (code.Length == 0)
         {
-            Hint = "Najpierw wklej kod zaproszenia.";
+            Hint = "Paste an invite code first.";
             return;
         }
 

@@ -54,14 +54,14 @@ public sealed class RemoteHttpServer : IAsyncDisposable
     /// </summary>
     public async Task StartAsync()
     {
-        if (_app is not null) throw new InvalidOperationException("Serwer juz dziala.");
+        if (_app is not null) throw new InvalidOperationException("Server already running.");
 
         var app = BuildApp(IPAddress.Loopback, 0);
         await app.StartAsync();
 
         _app = app;
         Port = ResolvePort(app);
-        Audit?.Invoke("server", $"API gotowe na 127.0.0.1:{Port} (dostep wylacznie przez link)");
+        Audit?.Invoke("server", $"API ready on 127.0.0.1:{Port} (link access only)");
     }
 
     private static int ResolvePort(WebApplication app)

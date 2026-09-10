@@ -12,6 +12,14 @@ internal static class Program
         if (args.Contains("--pair"))
             return PairAsync(args).GetAwaiter().GetResult();
 
+        // Jedna kopia na sesje: dwa huby bilyby sie o wspolna liste polaczen i zapamietane porty.
+        if (!AgentVirtualHand.Services.SingleInstance.TryAcquire("avh-hub"))
+        {
+            AgentVirtualHand.Services.SingleInstance.WarnAlreadyRunning(
+                "AVH Hub", "AVH Hub is already running on this machine.");
+            return 1;
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
         // Zamknięte okno = martwy proces. Nic nie może utrzymywać przy życiu otwartych
