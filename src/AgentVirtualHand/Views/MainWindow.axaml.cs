@@ -81,6 +81,12 @@ public partial class MainWindow : Window
     /// <summary>Przyciski siedza w szablonie wiersza, wiec maszyne bierzemy z jego kontekstu.</summary>
     private static MachineRow? RowOf(object? sender) => (sender as Control)?.DataContext as MachineRow;
 
+    private void OnAdmitMachine(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null || RowOf(sender) is not { } machine) return;
+        Model.AdmitMachine(machine);
+    }
+
     private void OnExtendAccess(object? sender, RoutedEventArgs e)
     {
         if (Model is null || RowOf(sender) is not { } machine) return;

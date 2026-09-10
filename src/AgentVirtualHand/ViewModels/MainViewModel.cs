@@ -126,12 +126,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool HasNoMachines => IsRunning && Machines.Count == 0;
 
     /// <summary>Podsumowanie w pasku: ile maszyn faktycznie pracuje.</summary>
-    public string MachinesSummary => Machines.Count switch
+    public string MachinesSummary
     {
-        0 => "nikt nie pracuje",
-        1 => "1 maszyna",
-        _ => $"{Machines.Count} maszyn",
-    };
+        get
+        {
+            var working = Machines.Count(m => m.HasAccess);
+            var waiting = Machines.Count - working;
+
+            return (working, waiting) switch
+            {
+                (0, 0) => "nikt nie pracuje",
+                (0, _) => $"{waiting} czeka na wpuszczenie",
+                (_, 0) => working == 1 ? "1 maszyna pracuje" : $"{working} maszyny pracują",
+                _ => $"{working} pracuje, {waiting} czeka",
+            };
+        }
+    }
 
     public string ConnectionText
     {
@@ -223,6 +233,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Refresh();
     }
 
+    /// <summary>
+    /// Wpuszcza maszyne, ktora jest juz sparowana, ale stracila okno czasowe.
+    /// Nowy kod jest potrzebny tylko dla maszyny, ktorej jeszcze nigdy tu nie bylo -
+    /// przy tej tozsamosc zostala potwierdzona wczesniej.
+    /// </summary>
+    public void AdmitMachine(MachineRow machine)
+    {
+        var session = _sessions.Open(machine.Key, machine.Name);
+        Hint = $"{machine.Name} pracuje do {session.ExpiresAt:HH:mm}.";
+        Refresh();
+    }
+
     public void ExtendAccess(MachineRow machine)
     {
         _sessions.Extend(machine.Key, TimeSpan.FromMinutes(DurationMinutes));
@@ -309,8 +331,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var session = _sessions.ForPeer(peer.Key);
             var existing = Machines.FirstOrDefault(m => m.Key == peer.Key);
 
-            // Sparowana maszyna bez okna dostepu nic nie moze, wiec nie zajmuje miejsca na liscie.
-            if (session is null)
+            // Sparowana, rozlaczona i bez dostepu - nie ma o czym informowac, dopoki sie nie odezwie.
+            if (session is null && !peer.IsConnected)
             {
                 if (existing is not null) Machines.Remove(existing);
                 continue;

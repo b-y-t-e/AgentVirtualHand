@@ -67,12 +67,12 @@
       <!-- Sparowane maszyny -->
       <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="24,16,24,0">
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
-          <TextBlock Grid.Column="0" Classes="k" Text="maszyny z dostępem" />
+          <TextBlock Grid.Column="0" Classes="k" Text="maszyny" />
           <TextBlock Grid.Column="2" Classes="k" Text="{Binding MachinesSummary}" />
         </Grid>
 
         <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoMachines}"
-                   Text="Nikt teraz nie pracuje na tej maszynie. Maszyna pojawi się tutaj, gdy użyje kodu zaproszenia." />
+                   Text="Nikt teraz nie pracuje na tej maszynie. Maszyna pojawi się tutaj, gdy użyje kodu zaproszenia albo gdy wcześniej sparowana zgłosi się ponownie." />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasMachines}">
           <ItemsControl ItemsSource="{Binding Machines}">
@@ -94,8 +94,12 @@
                       <TextBlock Grid.Column="0" Classes="val" Text="{Binding DetailText}"
                                  VerticalAlignment="Center" />
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Content="Przedłuż" Click="OnExtendAccess" />
-                        <Button Classes="danger" Content="Odetnij" Click="OnRevokeAccess" />
+                        <Button Classes="primary" Content="Wpuść" Click="OnAdmitMachine"
+                                IsVisible="{Binding !HasAccess}" />
+                        <Button Content="Przedłuż" Click="OnExtendAccess"
+                                IsVisible="{Binding HasAccess}" />
+                        <Button Classes="danger" Content="Odetnij" Click="OnRevokeAccess"
+                                IsVisible="{Binding HasAccess}" />
                       </StackPanel>
                     </Grid>
                   </Grid>
