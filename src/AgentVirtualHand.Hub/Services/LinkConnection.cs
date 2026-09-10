@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text;
 using AgentVirtualHand.Server;
 using Microsoft.AspNetCore.Builder;
@@ -236,6 +237,8 @@ public sealed class LinkConnection : IAsyncDisposable
             Note = context.Request.Headers["X-AVH-Note"].ToString() is { Length: > 0 } note ? note : null,
         };
 
+        LogForwarded(request);
+
         try
         {
             var raw = await link.RequestAsync(LinkCodec.Encode(request), context.RequestAborted);
@@ -254,6 +257,64 @@ public sealed class LinkConnection : IAsyncDisposable
             context.Response.StatusCode = 502;
             await context.Response.WriteAsJsonAsync(new { error = ex.Message });
         }
+    }
+
+    /// <summary>Pokazuje w logu, co i do ktorej maszyny wysylamy - jak w oknie hosta.</summary>
+    private void LogForwarded(LinkRequest r)
+    {
+        var (kind, text) = Summarize(r);
+        if (kind is null) return;
+
+        if (!string.IsNullOrWhiteSpace(r.Note)) Audit?.Invoke("note", $"{Entry.Name}: {Cap(r.Note)}");
+        Audit?.Invoke(kind, $"{Entry.Name}: {Cap(text)}");
+    }
+
+    private static (string? Kind, string Text) Summarize(LinkRequest r)
+    {
+        var path = r.Path;
+        if (path is "/api/exec" or "/api/exec/start")
+            return ("exec", Field(r.Body, "command") ?? "exec");
+
+        if (path.StartsWith("/api/fs/", StringComparison.Ordinal))
+        {
+            var op = path["/api/fs/".Length..];
+            if (op is "write" or "upload" or "mkdir" or "delete")
+                return ("fs", $"{op} {Field(r.Body, "path") ?? QueryParam(r.Query, "path")}");
+            if (op is "move")
+                return ("fs", $"move {Field(r.Body, "from")} -> {Field(r.Body, "to")}");
+        }
+
+        // Reszta (system, session, help, polling wyniku, stdin/kill) to szum - nie logujemy.
+        return (null, "");
+    }
+
+    private static string? Field(string? json, string name)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+                ? v.GetString() : null;
+        }
+        catch { return null; }
+    }
+
+    private static string? QueryParam(string? query, string name)
+    {
+        if (string.IsNullOrEmpty(query)) return null;
+        foreach (var pair in query.Split('&'))
+        {
+            var eq = pair.IndexOf('=');
+            if (eq > 0 && pair[..eq] == name) return Uri.UnescapeDataString(pair[(eq + 1)..]);
+        }
+        return null;
+    }
+
+    private static string Cap(string text)
+    {
+        text = text.ReplaceLineEndings(" ").Trim();
+        return text.Length <= 200 ? text : text[..200] + "...";
     }
 
     private bool IsAuthorized(HttpContext context)

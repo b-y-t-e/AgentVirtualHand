@@ -7,25 +7,28 @@ using Avalonia.Threading;
 namespace AgentVirtualHand.ViewModels;
 
 /// <summary>
-/// Blokada okna: pierwsze uruchomienie wymusza ustawienie hasła, a po 30 sekundach
-/// bez ruchu myszy i klawiatury treść okna znika i wraca dopiero po podaniu hasła.
-/// Nieudana próba kosztuje 10 sekund - tyle, żeby zgadywanie po omacku nie miało sensu.
+/// Window lock. When on, first launch forces setting a password and the window locks
+/// after 30 seconds of no mouse/keyboard, returning only after the password. A wrong
+/// attempt costs 10 seconds. The lock can be turned off entirely (persisted), in which
+/// case the window opens straight to its content and never locks.
 /// </summary>
 public sealed class LockViewModel : INotifyPropertyChanged
 {
     public static TimeSpan IdleTimeout { get; } = TimeSpan.FromSeconds(30);
     public static TimeSpan PenaltyAfterFailure { get; } = TimeSpan.FromSeconds(10);
 
-    /// <summary>Na ile sekund przed blokadą pokazać ciche ostrzeżenie o zbliżającym się zamknięciu.</summary>
+    /// <summary>How many seconds before the lock to show the quiet countdown warning.</summary>
     public static int LockWarningSeconds { get; } = 10;
 
     private readonly PasswordGate _gate;
     private readonly TimeProvider _clock;
     private readonly DispatcherTimer? _timer;
+    private readonly string _disabledMarker;
 
     private DateTimeOffset _lastActivity;
     private DateTimeOffset? _penaltyUntil;
 
+    private bool _autoLock;
     private bool _isLocked;
     private string _password = "";
     private string _confirmation = "";
@@ -33,19 +36,30 @@ public sealed class LockViewModel : INotifyPropertyChanged
     private int _penaltySeconds;
     private int _secondsUntilLock;
 
-    /// <param name="clock">Wstrzykiwany zegar - dzięki niemu odliczanie da się przetestować bez czekania.</param>
-    /// <param name="runTimer">Fałsz w testach: wtedy <see cref="Tick"/> woła się ręcznie.</param>
+    /// <param name="clock">Injected clock so the countdown can be tested without waiting.</param>
+    /// <param name="runTimer">False in tests: then <see cref="Tick"/> is called by hand.</param>
     public LockViewModel(string storageDirectory, TimeProvider? clock = null, bool runTimer = true)
     {
         _gate = new PasswordGate(storageDirectory);
         _clock = clock ?? TimeProvider.System;
         _lastActivity = _clock.GetUtcNow();
+        _disabledMarker = Path.Combine(storageDirectory, "autolock.off");
+        _autoLock = !MarkerExists();
 
-        NeedsSetup = !_gate.IsConfigured;
-        _isLocked = true;
-        _message = NeedsSetup
-            ? "Set a password to unlock this window."
-            : "Window locked. Enter the password.";
+        if (!_autoLock)
+        {
+            // Lock turned off: open straight to content, never lock.
+            _isLocked = false;
+            NeedsSetup = false;
+        }
+        else
+        {
+            NeedsSetup = !_gate.IsConfigured;
+            _isLocked = true;
+            _message = NeedsSetup ? "Set a password to unlock this window." : "Window locked. Enter the password.";
+        }
+
+        _secondsUntilLock = (int)IdleTimeout.TotalSeconds;
 
         if (!runTimer) return;
 
@@ -54,7 +68,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
         _timer.Start();
     }
 
-    /// <summary>Pierwsze uruchomienie - zamiast odblokowania prosimy o ustawienie hasła.</summary>
+    /// <summary>First launch - ask to set a password instead of unlocking.</summary>
     public bool NeedsSetup { get; private set; }
 
     public bool IsLocked
@@ -68,6 +82,23 @@ public sealed class LockViewModel : INotifyPropertyChanged
     }
 
     public bool IsUnlocked => !IsLocked;
+
+    /// <summary>Whether the window locks itself on idle. Off = never locks, no password prompt.</summary>
+    public bool AutoLockEnabled
+    {
+        get => _autoLock;
+        private set
+        {
+            if (!Set(ref _autoLock, value)) return;
+            OnPropertyChanged(nameof(AutoLockText));
+            OnPropertyChanged(nameof(AutoLockAccent));
+            OnPropertyChanged(nameof(ShowLockCountdown));
+        }
+    }
+
+    public string AutoLockText => AutoLockEnabled ? "auto-lock on" : "auto-lock off";
+
+    public IBrush AutoLockAccent => Brush.Parse(AutoLockEnabled ? "#63D19B" : "#5C6474");
 
     public string Password
     {
@@ -89,7 +120,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
 
     public string ActionText => NeedsSetup ? "Set password" : "Unlock";
 
-    /// <summary>Ile sekund kary zostało po nieudanej próbie; 0 gdy można próbować.</summary>
+    /// <summary>Seconds of penalty left after a wrong attempt; 0 when a new try is allowed.</summary>
     public int PenaltySeconds
     {
         get => _penaltySeconds;
@@ -104,7 +135,6 @@ public sealed class LockViewModel : INotifyPropertyChanged
     public bool HasPenalty => PenaltySeconds > 0;
     public bool CanSubmit => PenaltySeconds == 0;
 
-    /// <summary>Sekundy do automatycznej blokady - liczone tylko w ostatnich chwilach bezczynności.</summary>
     public int SecondsUntilLock
     {
         get => _secondsUntilLock;
@@ -117,8 +147,8 @@ public sealed class LockViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Licznik widoczny przez caly czas, gdy okno jest odblokowane.</summary>
-    public bool ShowLockCountdown => !IsLocked;
+    /// <summary>Countdown shown whenever the window is unlocked and auto-lock is on.</summary>
+    public bool ShowLockCountdown => AutoLockEnabled && !IsLocked;
 
     public string LockCountdownText
     {
@@ -129,12 +159,38 @@ public sealed class LockViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Wyciszony przez wiekszosc czasu, ostrzegawczy w ostatnich sekundach.</summary>
+    /// <summary>Muted most of the time, warning in the last seconds.</summary>
     public IBrush LockCountdownAccent =>
         Brush.Parse(SecondsUntilLock <= LockWarningSeconds ? "#FFB454" : "#5C6474");
 
-    /// <summary>Ruch myszą albo klawisz - liczy się jako obecność przy komputerze.</summary>
+    /// <summary>Mouse move or key press - counts as presence at the computer.</summary>
     public void NoteActivity() => _lastActivity = _clock.GetUtcNow();
+
+    /// <summary>Turns auto-lock on or off and remembers the choice.</summary>
+    public void ToggleAutoLock()
+    {
+        if (AutoLockEnabled)
+        {
+            WriteMarker(true);       // disabled
+            AutoLockEnabled = false;
+            IsLocked = false;
+            Message = "";
+            return;
+        }
+
+        WriteMarker(false);          // enabled
+        AutoLockEnabled = true;
+        NoteActivity();
+
+        // Enabling the lock requires a password: if none is set, ask for one now.
+        if (!_gate.IsConfigured)
+        {
+            NeedsSetup = true;
+            OnPropertyChanged(nameof(NeedsSetup));
+            OnPropertyChanged(nameof(ActionText));
+            Lock();
+        }
+    }
 
     public void Lock()
     {
@@ -142,12 +198,12 @@ public sealed class LockViewModel : INotifyPropertyChanged
 
         Password = "";
         Confirmation = "";
-        Message = "Window locked after 30 seconds idle. Enter the password.";
+        Message = NeedsSetup ? "Set a password to unlock this window." : "Window locked. Enter the password.";
         IsLocked = true;
         SecondsUntilLock = 0;
     }
 
-    /// <summary>Wspólny przycisk: przy pierwszym uruchomieniu ustawia hasło, później odblokowuje.</summary>
+    /// <summary>Shared button: sets the password on first run, unlocks afterwards.</summary>
     public void Submit()
     {
         if (!CanSubmit) return;
@@ -204,7 +260,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
         SecondsUntilLock = (int)IdleTimeout.TotalSeconds;
     }
 
-    /// <summary>Krok zegara: odlicza karę i pilnuje bezczynności. Woła go zegar okna co sekundę.</summary>
+    /// <summary>Clock step: counts down the penalty and watches idle. Called every second.</summary>
     public void Tick()
     {
         if (_penaltyUntil is { } until)
@@ -223,7 +279,7 @@ public sealed class LockViewModel : INotifyPropertyChanged
             }
         }
 
-        if (IsLocked)
+        if (!AutoLockEnabled || IsLocked)
         {
             SecondsUntilLock = 0;
             return;
@@ -238,6 +294,32 @@ public sealed class LockViewModel : INotifyPropertyChanged
 
         var untilLock = (int)Math.Ceiling((IdleTimeout - idle).TotalSeconds);
         SecondsUntilLock = Math.Max(untilLock, 0);
+    }
+
+    private bool MarkerExists()
+    {
+        try { return File.Exists(_disabledMarker); }
+        catch { return false; }
+    }
+
+    private void WriteMarker(bool disabled)
+    {
+        try
+        {
+            if (disabled)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_disabledMarker)!);
+                File.WriteAllText(_disabledMarker, "auto-lock disabled by the user");
+            }
+            else if (File.Exists(_disabledMarker))
+            {
+                File.Delete(_disabledMarker);
+            }
+        }
+        catch
+        {
+            // Failing to persist the choice must not break the app; it just won't stick.
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

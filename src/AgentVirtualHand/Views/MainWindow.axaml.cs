@@ -36,6 +36,8 @@ public partial class MainWindow : Window
 
     private void OnLockSubmit(object? sender, RoutedEventArgs e) => Model?.Lock.Submit();
 
+    private void OnToggleAutoLock(object? sender, RoutedEventArgs e) => Model?.Lock.ToggleAutoLock();
+
     private void OnLockKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;
