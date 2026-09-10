@@ -7,17 +7,13 @@ namespace AgentVirtualHand.Hub.Services;
 public static class PromptBuilder
 {
     public static string ForConnection(LinkConnection connection) => $$"""
-        AVH {{connection.BaseUrl}} = zdalna powloka+pliki na maszynie "{{connection.Entry.Name}}".
-        To jedyna maszyna, do ktorej masz dostep - ten adres i token nie prowadza do zadnej innej.
-        Dzialasz na koncie wlasciciela tamtej maszyny; operacje destrukcyjne najpierw potwierdz.
-        Do kazdego zadania dodaj naglowek: -H "Authorization: Bearer {{connection.Token}}"
-        API (prefix {{connection.BaseUrl}}): GET /api/help (pelna instrukcja) | GET /api/system (os, shell, dyski, home) | GET /api/session (pozostaly czas)
-        EXEC: POST /api/exec {"command":"...","cwd":"...","timeoutSeconds":120} -> exitCode/stdout/stderr/timedOut
-        (command to string JSON: KAZDY backslash podwoj - "SERWER\\INSTANCJA", "C:\\Temp" - albo uzyj /)
-        BG: POST /api/exec/start (te same pola) -> {"id"} | GET /api/exec/<id>?outOffset=N&errOffset=N (output przyrostowo; running, exitCode) | POST /api/exec/<id>/stdin (body=tekst) | POST /api/exec/<id>/kill
-        FS: GET /api/fs/list?path= | GET /api/fs/read?path=&maxBytes= | GET /api/fs/download?path= | POST /api/fs/write {"path","content"|"contentBase64","append"?} | POST /api/fs/upload?path= (body=bajty) | POST /api/fs/mkdir {"path"} | POST /api/fs/delete {"path","recursive"?} | POST /api/fs/move {"from","to"}
-        NOTY: sciezki Windows w JSON z podwojnym backslashem lub /; dlugie operacje (instalacje, kompilacje) przez BG;
-        polaczenie idzie przez lokalny port aplikacji posredniczacej - jesli dostaniesz 502, link jest chwilowo zerwany,
-        a 401 oznacza zamkniety dostep po stronie wlasciciela (popros o ponowne otwarcie); koniec pracy: POST /api/session/end.
+        Shell + files on machine "{{connection.Entry.Name}}" - the only machine you can reach.
+        You act as its owner; confirm destructive actions. Paths: use / or double every backslash ("C:/Temp" or "C:\\Temp").
+        All calls: {{connection.BaseUrl}}<path> -H "Authorization: Bearer {{connection.Token}}"
+        system  GET /api/system  |  session  GET /api/session  |  end  POST /api/session/end  |  full ref  GET /api/help
+        exec    POST /api/exec {"command","cwd","timeoutSeconds":120} -> exitCode/stdout/stderr/timedOut
+        long    POST /api/exec/start -> {"id"} ; GET /api/exec/<id>?outOffset=N&errOffset=N ; POST /api/exec/<id>/stdin (text) ; POST /api/exec/<id>/kill
+        files   GET /api/fs/list|read|download ?path=  ;  POST /api/fs/write {"path","content"|"contentBase64","append"?} ; /upload?path= (bytes) ; /mkdir ; /delete {"path","recursive"?} ; /move {"from","to"}
+        502 = link briefly down, retry. 401 = access closed by owner, ask to reopen.
         """;
 }
