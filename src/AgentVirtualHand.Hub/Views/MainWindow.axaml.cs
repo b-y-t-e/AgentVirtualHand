@@ -2,6 +2,7 @@ using AgentVirtualHand.Hub.ViewModels;
 using AgentVirtualHand.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
