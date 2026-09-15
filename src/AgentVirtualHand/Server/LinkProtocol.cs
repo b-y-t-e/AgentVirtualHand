@@ -28,6 +28,25 @@ public sealed record LinkRequest
     public string? Note { get; init; }
 }
 
+/// <summary>
+/// Metadane transferu strumieniowego (SendAsync/OnTransfer). Jadą w polu <c>TransferOffer.Metadata</c>
+/// jako bajty JSON i korelują transfer z żądaniem koordynującym. Współdzielone host&lt;-&gt;hub.
+/// </summary>
+public sealed record TransferMeta
+{
+    /// <summary>"upload" (hub -&gt; host) albo "download" (host -&gt; hub).</summary>
+    public string Op { get; init; } = "";
+
+    /// <summary>Ścieżka docelowa przy uploadzie; przy downloadzie zbędna (host zna ją z żądania).</summary>
+    public string? Path { get; init; }
+
+    /// <summary>Identyfikator korelacji - łączy transfer z żądaniem, które go zamówiło.</summary>
+    public string Id { get; init; } = "";
+
+    /// <summary>X-AVH-Note od modelu przy uploadzie - transfer omija loopback, wiec host loguje ja sam.</summary>
+    public string? Note { get; init; }
+}
+
 public sealed record LinkResponse
 {
     public int Status { get; init; } = 200;
@@ -41,6 +60,9 @@ public sealed record LinkResponse
 
     public static LinkResponse Error(int status, string message) =>
         new() { Status = status, ContentType = "application/json", Body = $"{{\"error\":\"{Escape(message)}\"}}" };
+
+    public static LinkResponse Json(int status, object body) =>
+        new() { Status = status, ContentType = "application/json", Body = JsonSerializer.Serialize(body) };
 
     private static string Escape(string text) =>
         text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", "");

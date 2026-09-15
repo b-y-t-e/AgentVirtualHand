@@ -20,10 +20,19 @@ public sealed class LinkHost : IAsyncDisposable
     private readonly SessionManager _sessions;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
+    private readonly StreamedUploadReceiver _uploads;
+    private readonly StreamedDownloadSender _downloads;
+
     private ILinkHost? _host;
     private LinkInvitation? _invitation;
 
-    public LinkHost(SessionManager sessions) => _sessions = sessions;
+    public LinkHost(SessionManager sessions)
+    {
+        _sessions = sessions;
+        var gate = new TransferGate(sessions, (kind, text) => Audit?.Invoke(kind, text));
+        _uploads = new StreamedUploadReceiver(gate);
+        _downloads = new StreamedDownloadSender(gate);
+    }
 
     public event Action<string, string>? Audit;
     public event Action? Changed;
@@ -71,6 +80,8 @@ public sealed class LinkHost : IAsyncDisposable
 
         var host = await TailcatLink.HostManyAsync(AppName, options).ConfigureAwait(false);
         host.SetRequestHandler(HandleAsync);
+        // Duze pliki nie miesza sie w kopercie 16 MiB - hub wysyla je strumieniem, a to je odbiera.
+        host.SetTransferHandler(_uploads.ReceiveAsync);
 
         host.PeerJoined += (_, e) =>
         {
@@ -171,11 +182,17 @@ public sealed class LinkHost : IAsyncDisposable
 
         var session = _sessions.ForPeer(peer.Key.ToString());
         if (session is null)
-            return LinkCodec.Encode(LinkResponse.Error(401,
-                "Access closed - the machine owner must grant it in the AVH window."));
+            return LinkCodec.Encode(LinkResponse.Error(401, TransferGate.AccessClosedMessage));
 
         try
         {
+            // Duze transfery plikowe omijaja koperte requestu: hub prosi o pobranie tu, a wysylke
+            // uploadu konczy osobnym "upload-finish". Reszta idzie zwyklym forwardem do loopbacku.
+            if (StreamedDownloadSender.IsBeginRequest(call))
+                return LinkCodec.Encode(_downloads.Begin(peer, session, call));
+            if (StreamedUploadReceiver.IsFinishRequest(call))
+                return LinkCodec.Encode(await _uploads.FinishAsync(call, ct).ConfigureAwait(false));
+
             var response = await ForwardAsync(call, session.Token, ct).ConfigureAwait(false);
             return LinkCodec.Encode(response);
         }
@@ -200,11 +217,18 @@ public sealed class LinkHost : IAsyncDisposable
         if (call.BodyBase64 is { Length: > 0 })
         {
             message.Content = new ByteArrayContent(Convert.FromBase64String(call.BodyBase64));
-            message.Content.Headers.ContentType = new MediaTypeHeaderValue(call.ContentType ?? "application/octet-stream");
+            message.Content.Headers.ContentType = MediaTypeHeaderValue.TryParse(call.ContentType, out var binaryType)
+                ? binaryType
+                : new MediaTypeHeaderValue("application/octet-stream");
         }
         else if (call.Body is not null)
         {
-            message.Content = new StringContent(call.Body, Encoding.UTF8, call.ContentType ?? "application/json");
+            // Third StringContent argument is the *media type* only - a value with parameters
+            // ("application/json; charset=utf-8") throws FormatException, so strip them; UTF-8 is re-added.
+            var media = MediaTypeHeaderValue.TryParse(call.ContentType, out var textType) && textType.MediaType is { } m
+                ? m
+                : "application/json";
+            message.Content = new StringContent(call.Body, Encoding.UTF8, media);
         }
 
         using var reply = await _http.SendAsync(message, ct).ConfigureAwait(false);
@@ -229,6 +253,6 @@ public sealed class LinkHost : IAsyncDisposable
     private static PeerInfo Describe(ILinkPeer peer) =>
         new(peer.Key.ToString(), Name(peer), peer.IsConnected, peer.PairedAt);
 
-    private static string Name(ILinkPeer peer) =>
+    internal static string Name(ILinkPeer peer) =>
         string.IsNullOrWhiteSpace(peer.Name) ? "unknown machine" : peer.Name;
 }

@@ -31,6 +31,15 @@
   <ItemGroup>
     <!-- Koperta protokolu jest wspolna z hostem - jeden plik, zeby strony nie rozjechaly sie w locie. -->
     <Compile Include="..\AgentVirtualHand\Server\LinkProtocol.cs" Link="LinkProtocol.cs" />
+    <!-- Query koperty dekodujemy tak samo jak host (i binding ASP.NET). -->
+    <Compile Include="..\AgentVirtualHand\Server\LinkQuery.cs" Link="LinkQuery.cs" />
+    <!-- Log huba dekoduje skrypt tak samo jak host. -->
+    <Compile Include="..\AgentVirtualHand\Server\ExecScript.cs" Link="ExecScript.cs" />
+    <Compile Include="..\AgentVirtualHand\Server\BomText.cs" Link="BomText.cs" />
+    <!-- Prompt podaje te same limity exec, ktore wymusza host. -->
+    <Compile Include="..\AgentVirtualHand\Server\ExecLimits.cs" Link="ExecLimits.cs" />
+    <!-- Postep transferow logujemy tym samym progiem i formatem co host. -->
+    <Compile Include="..\AgentVirtualHand\Server\TransferProgressLog.cs" Link="TransferProgressLog.cs" />
     <!-- Blokada okna jest wspolna dla obu aplikacji okienkowych. -->
     <Compile Include="..\AgentVirtualHand\Services\PasswordGate.cs" Link="PasswordGate.cs" />
     <Compile Include="..\AgentVirtualHand\ViewModels\LockViewModel.cs" Link="LockViewModel.cs" />

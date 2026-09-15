@@ -27,11 +27,19 @@ public sealed class LinkConnection : IAsyncDisposable
     private ILink? _link;
     private WebApplication? _app;
 
+    private readonly ConnectionAudit _audit;
+    private readonly StreamedUploadForwarder _uploads;
+    private readonly StreamedDownloadForwarder _downloads;
+
     public LinkConnection(ConnectionEntry entry)
     {
         // Token zyje razem z wpisem, nie z procesem - inaczej restart aplikacji
         // unieważniałby każdy wcześniej skopiowany prompt.
         Entry = entry.Token.Length > 0 ? entry : entry with { Token = NewToken() };
+
+        _audit = new ConnectionAudit(() => Entry.Name, (kind, text) => Audit?.Invoke(kind, text));
+        _uploads = new StreamedUploadForwarder(_audit);
+        _downloads = new StreamedDownloadForwarder(_audit);
     }
 
     public ConnectionEntry Entry { get; private set; }
@@ -90,6 +98,8 @@ public sealed class LinkConnection : IAsyncDisposable
             Audit?.Invoke("link", $"{Entry.Name}: disconnected ({reason})");
             Changed?.Invoke();
         };
+        // Odbior duzych pobran: host pcha plik strumieniem, my przepinamy go w odpowiedz HTTP.
+        link.OnTransfer(_downloads.ReceiveAsync);
 
         _link = link;
 
@@ -217,6 +227,19 @@ public sealed class LinkConnection : IAsyncDisposable
             return;
         }
 
+        // Pliki ida kanalem transferu (dowolny rozmiar), nie kopertą 16 MiB. HTTP od strony
+        // modelu bez zmian - te same endpointy, ta sama odpowiedz; inny tylko transport.
+        if (context.Request.Method == "GET" && context.Request.Path == StreamedDownloadForwarder.RoutePath)
+        {
+            await _downloads.ForwardAsync(context, link);
+            return;
+        }
+        if (context.Request.Method == "POST" && context.Request.Path == StreamedUploadForwarder.RoutePath)
+        {
+            await _uploads.ForwardAsync(context, link);
+            return;
+        }
+
         using var buffer = new MemoryStream();
         await context.Request.Body.CopyToAsync(buffer);
         var body = buffer.ToArray();
@@ -230,32 +253,22 @@ public sealed class LinkConnection : IAsyncDisposable
         {
             Method = context.Request.Method,
             Path = context.Request.Path.Value ?? "/",
-            Query = context.Request.QueryString.HasValue ? context.Request.QueryString.Value![1..] : null,
+            Query = LinkHttp.RawQuery(context),
             Body = body.Length > 0 && isText ? Encoding.UTF8.GetString(body) : null,
             BodyBase64 = body.Length > 0 && !isText ? Convert.ToBase64String(body) : null,
             ContentType = contentType,
-            Note = context.Request.Headers["X-AVH-Note"].ToString() is { Length: > 0 } note ? note : null,
+            Note = LinkHttp.Note(context),
         };
 
         LogForwarded(request);
 
         try
         {
-            var raw = await link.RequestAsync(LinkCodec.Encode(request), context.RequestAborted);
-            var response = LinkCodec.Decode<LinkResponse>(raw);
-
-            context.Response.StatusCode = response.Status;
-            if (response.ContentType is not null) context.Response.ContentType = response.ContentType;
-
-            if (response.BodyBase64 is { } encoded)
-                await context.Response.Body.WriteAsync(Convert.FromBase64String(encoded));
-            else if (response.Body is { } text)
-                await context.Response.WriteAsync(text, Encoding.UTF8);
+            await LinkHttp.WriteAsync(context, await LinkHttp.RequestAsync(link, request, context.RequestAborted));
         }
         catch (Exception ex)
         {
-            context.Response.StatusCode = 502;
-            await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+            await LinkHttp.WriteErrorAsync(context, 502, ex.Message);
         }
     }
 
@@ -265,27 +278,40 @@ public sealed class LinkConnection : IAsyncDisposable
         var (kind, text) = Summarize(r);
         if (kind is null) return;
 
-        if (!string.IsNullOrWhiteSpace(r.Note)) Audit?.Invoke("note", $"{Entry.Name}: {Cap(r.Note)}");
-        Audit?.Invoke(kind, $"{Entry.Name}: {Cap(text)}");
+        _audit.Note(r.Note);
+        _audit.Write(kind, text);
     }
 
     private static (string? Kind, string Text) Summarize(LinkRequest r)
     {
         var path = r.Path;
         if (path is "/api/exec" or "/api/exec/start")
-            return ("exec", Field(r.Body, "command") ?? "exec");
+            // Kolejnosc jak na hoscie: gdy przyszly oba pola, wykonuje sie skrypt, nie 'command'.
+            return ("exec", ExecSummary(r.Body));
 
         if (path.StartsWith("/api/fs/", StringComparison.Ordinal))
         {
             var op = path["/api/fs/".Length..];
             if (op is "write" or "upload" or "mkdir" or "delete")
-                return ("fs", $"{op} {Field(r.Body, "path") ?? QueryParam(r.Query, "path")}");
+                return ("fs", $"{op} {Field(r.Body, "path") ?? LinkQuery.Value(r.Query, "path")}");
             if (op is "move")
                 return ("fs", $"move {Field(r.Body, "from")} -> {Field(r.Body, "to")}");
         }
 
         // Reszta (system, session, help, polling wyniku, stdin/kill) to szum - nie logujemy.
         return (null, "");
+    }
+
+    /// <summary>Skrypt (jak w logu hosta) albo 'command'; niepoprawne 'scriptBase64' host odrzuca, wiec tak je opisujemy.</summary>
+    private static string ExecSummary(string? json)
+    {
+        var script = Field(json, "script");
+        var scriptBase64 = Field(json, "scriptBase64");
+        if (!ExecScript.IsPresent(script, scriptBase64)) return Field(json, "command") ?? "exec";
+
+        return ExecScript.Decode(script, scriptBase64) is { } body
+            ? "[script] " + body
+            : "[script] rejected: scriptBase64 is not base64 text";
     }
 
     private static string? Field(string? json, string name)
@@ -298,23 +324,6 @@ public sealed class LinkConnection : IAsyncDisposable
                 ? v.GetString() : null;
         }
         catch { return null; }
-    }
-
-    private static string? QueryParam(string? query, string name)
-    {
-        if (string.IsNullOrEmpty(query)) return null;
-        foreach (var pair in query.Split('&'))
-        {
-            var eq = pair.IndexOf('=');
-            if (eq > 0 && pair[..eq] == name) return Uri.UnescapeDataString(pair[(eq + 1)..]);
-        }
-        return null;
-    }
-
-    private static string Cap(string text)
-    {
-        text = text.ReplaceLineEndings(" ").Trim();
-        return text.Length <= 200 ? text : text[..200] + "...";
     }
 
     private bool IsAuthorized(HttpContext context)
