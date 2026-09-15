@@ -52,7 +52,7 @@ Always stop running processes before publishing (the exe locks its own file):
   names stay `AgentVirtualHand.*` even though the product shows as "AVH".
 - **On-disk names are deliberately opaque** so they do not reveal the tool's purpose:
   `%APPDATA%\avh` and `%APPDATA%\avh-hub` (see `AppPaths`), `avh.link.json` (see
-  `HiddenLinkStore`), `avh-blad.log`. Keep new artifacts equally neutral.
+  `HiddenLinkStore`), `avh-error.log`. Keep new artifacts equally neutral.
 - **Time-dependent logic takes an injected `TimeProvider`** (see `LockViewModel`) so it can be
   unit-tested without waiting. Follow that pattern for anything with a clock.
 - **State is in memory.** Sessions and tokens do not survive a host restart - that is intended.
@@ -73,3 +73,6 @@ window. For end-to-end, run `avh --headless`, grab the printed code, and drive `
   colors/thickness are set via `TextControl*` resource keys in `App.axaml`.
 - Raw string literals (`$$"""..."""`) do **not** process `\\` - a doubled backslash stays doubled,
   which is exactly the correct JSON form in HelpText/PromptBuilder examples.
+- `HeartbeatInterval` is set to **5 s** on both ends (`LinkHost`, `LinkConnection`), below Tailcat's
+  ~10 s silence threshold. The default 15 s let an idle relayed link drop and reconnect every 10 s.
+  Do not raise it back without re-checking idle behaviour over the relay.

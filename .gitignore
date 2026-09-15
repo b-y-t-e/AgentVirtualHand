@@ -6,7 +6,7 @@ publish/
 
 # robocze wyniki diagnostyki
 *WYNIK*.txt
-avh-blad.log
+avh-error.log
 
 # mTiles workspace state
 .mtiles/

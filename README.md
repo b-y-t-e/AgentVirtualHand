@@ -13,14 +13,15 @@ app's log.
 
 ## How it works
 
-1. On the controlled machine: **Start link**, set with the slider **how long you let a machine in**
-   (5 min - 8 h), and click **Invite machine**. The app shows a code valid for 15 minutes.
+1. On the controlled machine: **Start link**, pick **how long to let a machine in** (15 min, 1 h,
+   4 h or 8 h), and click **Invite machine**. The app shows a code valid for 15 minutes.
 2. Pass the code to where the client will run: `avh-link join <code>`, or paste it in the
    **avh-hub** window. The code lets **one** machine in and **disappears once used**.
 3. The machine that used it works immediately - it appears in the list with a countdown. Passing
    the code is already the decision to let it in, so there is no separate confirmation.
 4. When the time runs out, the machine loses access and needs a new code. Meanwhile you can
-   **Extend** or **Cut off** each machine individually; **Cut off all** ends work for everyone.
+   **Extend** each machine (a menu picks how much time to add) or **Cut off** its access,
+   **Delete** unpairs it for good, and **Cut off all** ends work for everyone.
 
 Several machines can work at once, each with its own time window and its own token.
 
@@ -33,7 +34,9 @@ Both windows - the controlled machine and the hub - are password protected. Firs
 **forces** you to set one; there is no default password, because anyone who downloaded the file
 would know it. After **30 seconds** without mouse or keyboard the window content disappears and
 returns only after the password is entered. A wrong attempt costs a **10-second** countdown
-during which the button is disabled.
+during which the button is disabled. A countdown in the status bar shows the time left before the
+window locks. The lock can be turned off entirely with the **auto-lock** switch in the status bar;
+with it off the window opens straight to its content and never locks, and the choice is remembered.
 
 Only a PBKDF2-SHA256 hash (210k iterations, random salt) is kept, in `lock.json` next to the
 app settings. A forgotten password cannot be recovered - delete that file and set a new one on
@@ -43,7 +46,7 @@ the next start.
 
 What is in place:
 
-- window locked by password after 30 s idle, with a 10 s penalty for a wrong attempt;
+- window locked by password after 30 s idle (can be turned off), with a 10 s penalty for a wrong attempt;
 - the HTTP server is only an internal bus, listens **on 127.0.0.1 only** and on a
   system-assigned port - there is nothing to scan from the network, no port is exposed;
 - transport between machines is set up by Tailcat.Link (encrypted, with its own node identity);
@@ -53,7 +56,8 @@ What is in place:
 - the session token never leaves the controlled machine - the client neither knows nor forwards it;
 - a hard session time limit; **Cut off** kills the session and every running process;
 - closing the app window ends the session and stops the link;
-- every command and file operation goes to the live log in the GUI.
+- every command and file operation goes to the live log in the GUI, each with a one-line
+  plain-language note from the client saying why it ran (the `X-AVH-Note` header).
 
 What is **not** there, and what to keep in mind:
 
@@ -61,7 +65,7 @@ What is **not** there, and what to keep in mind:
   and no allow-list of commands;
 - pairing is persistent (trust on first use): after the first `join` the other machine comes
   back without a code. Remove it with `avh-link forget` (or **Remove** in the hub) on the client
-  side, and with the **Unpair** action next to the machine name on the host side;
+  side, and with the **Delete** action next to the machine name on the host side;
 - the invite code is **single-use**: it lets one machine in and expires after use. Another
   machine needs a new code (**New code**);
 - several clients can work on one machine at once and **see each other's changes** - it is the
