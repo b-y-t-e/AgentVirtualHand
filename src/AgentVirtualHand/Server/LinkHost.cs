@@ -20,18 +20,15 @@ public sealed class LinkHost : IAsyncDisposable
     private readonly SessionManager _sessions;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
-    private readonly StreamedUploadReceiver _uploads;
-    private readonly StreamedDownloadSender _downloads;
+    private readonly StreamedFileTransfers _files;
 
     private ILinkHost? _host;
     private LinkInvitation? _invitation;
 
-    public LinkHost(SessionManager sessions)
+    public LinkHost(SessionManager sessions, TimeProvider? clock = null)
     {
         _sessions = sessions;
-        var gate = new TransferGate(sessions, (kind, text) => Audit?.Invoke(kind, text));
-        _uploads = new StreamedUploadReceiver(gate);
-        _downloads = new StreamedDownloadSender(gate);
+        _files = new StreamedFileTransfers(sessions, (kind, text) => Audit?.Invoke(kind, text), clock ?? TimeProvider.System);
     }
 
     public event Action<string, string>? Audit;
@@ -79,9 +76,9 @@ public sealed class LinkHost : IAsyncDisposable
         };
 
         var host = await TailcatLink.HostManyAsync(AppName, options).ConfigureAwait(false);
+        // Strumieniowy handler (0.5.0): koperta w metadanych, cialo jako strumien - dowolny rozmiar
+        // bez limitu i bez trzymania w pamieci. Stary klient (avh-link) trafia tu z pustymi metadanymi.
         host.SetRequestHandler(HandleAsync);
-        // Duze pliki nie miesza sie w kopercie 16 MiB - hub wysyla je strumieniem, a to je odbiera.
-        host.SetTransferHandler(_uploads.ReceiveAsync);
 
         host.PeerJoined += (_, e) =>
         {
@@ -165,45 +162,62 @@ public sealed class LinkHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sparowanie potwierdza tożsamość maszyny, ale nie wystarcza: dostęp musi być
-    /// otwarty w oknie aplikacji, osobno dla każdej maszyny, i wygasa razem z sesją.
+    /// Sparowanie potwierdza tożsamość maszyny, ale nie wystarcza: dostęp musi być otwarty w oknie
+    /// aplikacji, osobno dla każdej maszyny, i wygasa razem z sesją. Dwie ścieżki: puste metadane to
+    /// stary klient (avh-link) z całą <see cref="LinkRequest"/> w treści; metadane obecne to hub
+    /// strumieniowy - koperta w metadanych, ciało jako strumień dowolnego rozmiaru.
     /// </summary>
-    private async Task<ReadOnlyMemory<byte>> HandleAsync(ILinkPeer peer, ReadOnlyMemory<byte> request, CancellationToken ct)
+    private async Task<LinkContent> HandleAsync(ILinkPeer peer, IncomingTransfer request, CancellationToken ct)
     {
-        LinkRequest call;
-        try
-        {
-            call = LinkCodec.Decode<LinkRequest>(request);
-        }
-        catch (Exception ex)
-        {
-            return LinkCodec.Encode(LinkResponse.Error(400, $"Malformed envelope: {ex.Message}"));
-        }
-
+        var legacy = request.Metadata.IsEmpty;
         var session = _sessions.ForPeer(peer.Key.ToString());
         if (session is null)
-            return LinkCodec.Encode(LinkResponse.Error(401, TransferGate.AccessClosedMessage));
+            return Answer(legacy, LinkResponse.Error(401, AccessClosedException.DefaultMessage));
 
         try
         {
-            // Duze transfery plikowe omijaja koperte requestu: hub prosi o pobranie tu, a wysylke
-            // uploadu konczy osobnym "upload-finish". Reszta idzie zwyklym forwardem do loopbacku.
-            if (StreamedDownloadSender.IsBeginRequest(call))
-                return LinkCodec.Encode(_downloads.Begin(peer, session, call));
-            if (StreamedUploadReceiver.IsFinishRequest(call))
-                return LinkCodec.Encode(await _uploads.FinishAsync(call, ct).ConfigureAwait(false));
-
-            var response = await ForwardAsync(call, session.Token, ct).ConfigureAwait(false);
-            return LinkCodec.Encode(response);
+            return legacy
+                ? await HandleLegacyAsync(session, request, ct).ConfigureAwait(false)
+                : await HandleStreamingAsync(peer, session, request, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Audit?.Invoke("deny", $"{Name(peer)}: request handling error - {ex.Message}");
-            return LinkCodec.Encode(LinkResponse.Error(500, ex.Message));
+            return Answer(legacy, LinkResponse.Error(500, ex.Message));
         }
     }
 
-    private async Task<LinkResponse> ForwardAsync(LinkRequest call, string token, CancellationToken ct)
+    /// <summary>Stary klient (avh-link): cała <see cref="LinkRequest"/> z ciałem w treści, odpowiedź tak samo.</summary>
+    private async Task<LinkContent> HandleLegacyAsync(RemoteSession session, IncomingTransfer request, CancellationToken ct)
+    {
+        LinkRequest call;
+        try { call = LinkCodec.Decode<LinkRequest>(await request.ReadAllBytesAsync(ct).ConfigureAwait(false)); }
+        catch (Exception ex) { return LinkWire.LegacyResponse(LinkResponse.Error(400, $"Malformed envelope: {ex.Message}")); }
+
+        var reply = await ForwardAsync(call, LinkWire.BodyBytes(call), session.Token, ct).ConfigureAwait(false);
+        return LinkWire.LegacyResponse(reply);
+    }
+
+    /// <summary>Hub: koperta w metadanych, ciało jako strumień. Pliki strumieniem, reszta przez loopback.</summary>
+    private async Task<LinkContent> HandleStreamingAsync(ILinkPeer peer, RemoteSession session, IncomingTransfer request, CancellationToken ct)
+    {
+        var envelope = LinkWire.ReadRequest(request.Metadata);
+
+        if (LinkFileRoutes.IsUpload(envelope))
+            return await _files.ReceiveUploadAsync(peer, session, envelope, request, ct).ConfigureAwait(false);
+        if (LinkFileRoutes.IsDownload(envelope))
+            return _files.SendDownload(peer, session, envelope);
+
+        // Reszta (exec, fs/list, read, write, ...) - małe ciała, przez loopback jak dotąd.
+        var body = await request.ReadAllBytesAsync(ct).ConfigureAwait(false);
+        var response = await ForwardAsync(envelope, body, session.Token, ct).ConfigureAwait(false);
+        return LinkWire.Response(response);
+    }
+
+    private static LinkContent Answer(bool legacy, LinkResponse response) =>
+        legacy ? LinkWire.LegacyResponse(response) : LinkWire.Response(response);
+
+    private async Task<LinkResponse> ForwardAsync(LinkRequest call, ReadOnlyMemory<byte> body, string token, CancellationToken ct)
     {
         var path = call.Path.StartsWith('/') ? call.Path : "/" + call.Path;
         var url = $"http://127.0.0.1:{LoopbackPort}{path}";
@@ -214,21 +228,14 @@ public sealed class LinkHost : IAsyncDisposable
         if (!string.IsNullOrWhiteSpace(call.Note))
             message.Headers.TryAddWithoutValidation("X-AVH-Note", call.Note);
 
-        if (call.BodyBase64 is { Length: > 0 })
+        if (!body.IsEmpty)
         {
-            message.Content = new ByteArrayContent(Convert.FromBase64String(call.BodyBase64));
-            message.Content.Headers.ContentType = MediaTypeHeaderValue.TryParse(call.ContentType, out var binaryType)
-                ? binaryType
-                : new MediaTypeHeaderValue("application/octet-stream");
-        }
-        else if (call.Body is not null)
-        {
-            // Third StringContent argument is the *media type* only - a value with parameters
-            // ("application/json; charset=utf-8") throws FormatException, so strip them; UTF-8 is re-added.
-            var media = MediaTypeHeaderValue.TryParse(call.ContentType, out var textType) && textType.MediaType is { } m
-                ? m
-                : "application/json";
-            message.Content = new StringContent(call.Body, Encoding.UTF8, media);
+            message.Content = new ByteArrayContent(body.ToArray());
+            // Media type z parametrami ("application/json; charset=utf-8") wywala ctor - parsujemy tolerancyjnie.
+            // Brak typu to JSON: tak wysyła model do exec/write, a upload i tak omija tę ścieżkę.
+            message.Content.Headers.ContentType = MediaTypeHeaderValue.TryParse(call.ContentType, out var mt)
+                ? mt
+                : new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
         }
 
         using var reply = await _http.SendAsync(message, ct).ConfigureAwait(false);

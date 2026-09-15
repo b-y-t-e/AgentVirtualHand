@@ -13,4 +13,8 @@ public static class LinkQuery
         QueryHelpers.ParseNullableQuery(query) is { } parsed && parsed.TryGetValue(name, out var values)
             ? values.ToString()
             : null;
+
+    /// <summary>Ścieżka pliku transferu albo null, gdy jej brak lub jest pusta - wtedy odpowiedzią jest 400.</summary>
+    public static string? FilePath(string? query) =>
+        Value(query, "path") is { } path && !string.IsNullOrWhiteSpace(path) ? path : null;
 }

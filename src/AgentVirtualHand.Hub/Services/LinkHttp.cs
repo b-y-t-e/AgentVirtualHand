@@ -1,11 +1,10 @@
-using System.Text;
-using AgentVirtualHand.Server;
 using Microsoft.AspNetCore.Http;
-using Tailcat.Link;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Net.Http.Headers;
 
 namespace AgentVirtualHand.Hub.Services;
 
-/// <summary>Przejscie HTTP modelu &lt;-&gt; koperta linku, wspolne dla zwyklego forwardu i transferow plikow.</summary>
+/// <summary>Drobne przejscie HTTP modelu &lt;-&gt; link. Sam transport zada w LinkConnection.ForwardAsync.</summary>
 internal static class LinkHttp
 {
     /// <summary>Query string bez znaku zapytania, tak jak niesie go koperta.</summary>
@@ -15,23 +14,45 @@ internal static class LinkHttp
     public static string? Note(HttpContext context) =>
         context.Request.Headers["X-AVH-Note"].ToString() is { } note && !string.IsNullOrWhiteSpace(note) ? note : null;
 
-    public static async Task<LinkResponse> RequestAsync(ILink link, LinkRequest request, CancellationToken ct) =>
-        LinkCodec.Decode<LinkResponse>(await link.RequestAsync(LinkCodec.Encode(request), ct));
-
-    /// <summary>Odpowiedz z koperty przepisana 1:1 w odpowiedz HTTP dla modelu.</summary>
-    public static async Task WriteAsync(HttpContext context, LinkResponse response)
+    /// <summary>Limit ciała Kestrela chroni bufor w pamięci; strumieniowy upload go nie potrzebuje.</summary>
+    public static void LiftRequestBodyLimit(HttpContext context)
     {
-        context.Response.StatusCode = response.Status;
-        if (response.ContentType is not null) context.Response.ContentType = response.ContentType;
+        if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+            limit.MaxRequestBodySize = null;
+    }
 
-        if (response.BodyBase64 is { } encoded)
-            await context.Response.Body.WriteAsync(Convert.FromBase64String(encoded));
-        else if (response.Body is { } text)
-            await context.Response.WriteAsync(text, Encoding.UTF8);
+    /// <summary>Ciało requestu w przewijalnym pliku tymczasowym, który znika sam przy zamknięciu.</summary>
+    public static async Task<FileStream> SpoolBodyAsync(HttpContext context)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"~{Guid.NewGuid():n}.tmp");
+        var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        try
+        {
+            await context.Request.Body.CopyToAsync(spool, context.RequestAborted);
+            spool.Position = 0;
+            return spool;
+        }
+        catch
+        {
+            await spool.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <summary>Content-Disposition z poprawnie zakodowaną nazwą (filename*), także dla znaków spoza ASCII.</summary>
+    public static void WriteAttachmentName(HttpResponse response, string? fileName)
+    {
+        if (string.IsNullOrEmpty(fileName)) return;
+        var header = new ContentDispositionHeaderValue("attachment");
+        header.SetHttpFileName(fileName);
+        response.Headers.ContentDisposition = header.ToString();
     }
 
     public static async Task WriteErrorAsync(HttpContext context, int status, string message)
     {
+        if (context.Response.HasStarted) return;   // ciało już poszło - nie da się nadpisać statusu
+        context.Response.Clear();                  // nagłówki pliku (Content-Length, Content-Disposition) nie pasują do błędu
         context.Response.StatusCode = status;
         await context.Response.WriteAsJsonAsync(new { error = message });
     }

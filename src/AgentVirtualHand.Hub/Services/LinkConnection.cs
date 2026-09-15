@@ -28,8 +28,6 @@ public sealed class LinkConnection : IAsyncDisposable
     private WebApplication? _app;
 
     private readonly ConnectionAudit _audit;
-    private readonly StreamedUploadForwarder _uploads;
-    private readonly StreamedDownloadForwarder _downloads;
 
     public LinkConnection(ConnectionEntry entry)
     {
@@ -38,8 +36,6 @@ public sealed class LinkConnection : IAsyncDisposable
         Entry = entry.Token.Length > 0 ? entry : entry with { Token = NewToken() };
 
         _audit = new ConnectionAudit(() => Entry.Name, (kind, text) => Audit?.Invoke(kind, text));
-        _uploads = new StreamedUploadForwarder(_audit);
-        _downloads = new StreamedDownloadForwarder(_audit);
     }
 
     public ConnectionEntry Entry { get; private set; }
@@ -98,8 +94,6 @@ public sealed class LinkConnection : IAsyncDisposable
             Audit?.Invoke("link", $"{Entry.Name}: disconnected ({reason})");
             Changed?.Invoke();
         };
-        // Odbior duzych pobran: host pcha plik strumieniem, my przepinamy go w odpowiedz HTTP.
-        link.OnTransfer(_downloads.ReceiveAsync);
 
         _link = link;
 
@@ -227,49 +221,80 @@ public sealed class LinkConnection : IAsyncDisposable
             return;
         }
 
-        // Pliki ida kanalem transferu (dowolny rozmiar), nie kopertą 16 MiB. HTTP od strony
-        // modelu bez zmian - te same endpointy, ta sama odpowiedz; inny tylko transport.
-        if (context.Request.Method == "GET" && context.Request.Path == StreamedDownloadForwarder.RoutePath)
-        {
-            await _downloads.ForwardAsync(context, link);
-            return;
-        }
-        if (context.Request.Method == "POST" && context.Request.Path == StreamedUploadForwarder.RoutePath)
-        {
-            await _uploads.ForwardAsync(context, link);
-            return;
-        }
-
-        using var buffer = new MemoryStream();
-        await context.Request.Body.CopyToAsync(buffer);
-        var body = buffer.ToArray();
-
-        var contentType = context.Request.ContentType;
-        var isText = contentType is null
-            || contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
-            || contentType.Contains("json", StringComparison.OrdinalIgnoreCase);
-
-        var request = new LinkRequest
+        var envelope = new LinkRequest
         {
             Method = context.Request.Method,
             Path = context.Request.Path.Value ?? "/",
             Query = LinkHttp.RawQuery(context),
-            Body = body.Length > 0 && isText ? Encoding.UTF8.GetString(body) : null,
-            BodyBase64 = body.Length > 0 && !isText ? Convert.ToBase64String(body) : null,
-            ContentType = contentType,
+            ContentType = context.Request.ContentType,
             Note = LinkHttp.Note(context),
         };
 
-        LogForwarded(request);
-
         try
         {
-            await LinkHttp.WriteAsync(context, await LinkHttp.RequestAsync(link, request, context.RequestAborted));
+            if (LinkFileRoutes.IsUpload(envelope))
+                await ForwardUploadAsync(context, link, envelope);
+            else
+                await ForwardBufferedAsync(context, link, envelope);
+        }
+        catch (Exception) when (context.Response.HasStarted)
+        {
+            // Status i część ciała już wyszły - zrywamy połączenie, żeby klient nie wziął urwanego pliku za cały.
+            context.Abort();
         }
         catch (Exception ex)
         {
             await LinkHttp.WriteErrorAsync(context, 502, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Upload dowolnego rozmiaru. Ciała requestu na żywo nie da się przewinąć, więc gdy relay mrugnie
+    /// w połowie, transfer nie wstałby od miejsca przerwania - najpierw zrzucamy je do pliku tymczasowego.
+    /// </summary>
+    private async Task ForwardUploadAsync(HttpContext context, ILink link, LinkRequest envelope)
+    {
+        // Brak ścieżki odrzucamy od razu - bez zrzucania całego ciała na dysk i przez relay po to samo 400.
+        if (LinkQuery.FilePath(envelope.Query) is not { } path)
+        {
+            await LinkHttp.WriteErrorAsync(context, 400, LinkFileRoutes.MissingPathMessage);
+            return;
+        }
+
+        _audit.Note(envelope.Note);
+        _audit.Write("fs", $"upload {path}");
+
+        LinkHttp.LiftRequestBodyLimit(context);
+        await using var spool = await LinkHttp.SpoolBodyAsync(context);
+        await SendAsync(context, link, LinkWire.Request(envelope, spool, spool.Length, leaveOpen: true));
+    }
+
+    /// <summary>Małe ciało (exec, list, write) buforujemy, żeby pokazać je w logu.</summary>
+    private async Task ForwardBufferedAsync(HttpContext context, ILink link, LinkRequest envelope)
+    {
+        var body = await ReadBodyAsync(context);
+        LogForwarded(envelope with { Body = Encoding.UTF8.GetString(body) });
+        await SendAsync(context, link, LinkWire.Request(envelope, body));
+    }
+
+    /// <summary>Odpowiedź dowolnego rozmiaru (download) przepisujemy strumieniem 1:1 w odpowiedź HTTP.</summary>
+    private static async Task SendAsync(HttpContext context, ILink link, LinkContent content)
+    {
+        await using var answer = await link.RequestAsync(content, context.RequestAborted);
+        var response = LinkWire.ReadResponse(answer);
+        context.Response.StatusCode = response.Status;
+        if (response.ContentType is not null) context.Response.ContentType = response.ContentType;
+        LinkHttp.WriteAttachmentName(context.Response, response.FileName);
+        // Znana długość pozwala klientowi rozpoznać urwany plik.
+        if (answer.Length is { } length) context.Response.ContentLength = length;
+        await answer.CopyToAsync(context.Response.Body, null, context.RequestAborted);
+    }
+
+    private static async Task<byte[]> ReadBodyAsync(HttpContext context)
+    {
+        using var buffer = new MemoryStream();
+        await context.Request.Body.CopyToAsync(buffer, context.RequestAborted);
+        return buffer.ToArray();
     }
 
     /// <summary>Pokazuje w logu, co i do ktorej maszyny wysylamy - jak w oknie hosta.</summary>
@@ -292,7 +317,7 @@ public sealed class LinkConnection : IAsyncDisposable
         if (path.StartsWith("/api/fs/", StringComparison.Ordinal))
         {
             var op = path["/api/fs/".Length..];
-            if (op is "write" or "upload" or "mkdir" or "delete")
+            if (op is "write" or "mkdir" or "delete" or "download")
                 return ("fs", $"{op} {Field(r.Body, "path") ?? LinkQuery.Value(r.Query, "path")}");
             if (op is "move")
                 return ("fs", $"move {Field(r.Body, "from")} -> {Field(r.Body, "to")}");

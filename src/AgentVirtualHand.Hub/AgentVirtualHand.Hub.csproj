@@ -25,7 +25,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
-    <PackageReference Include="Tailcat.Link" Version="0.4.3" />
+    <PackageReference Include="Tailcat.Link" Version="0.5.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,8 +38,6 @@
     <Compile Include="..\AgentVirtualHand\Server\BomText.cs" Link="BomText.cs" />
     <!-- Prompt podaje te same limity exec, ktore wymusza host. -->
     <Compile Include="..\AgentVirtualHand\Server\ExecLimits.cs" Link="ExecLimits.cs" />
-    <!-- Postep transferow logujemy tym samym progiem i formatem co host. -->
-    <Compile Include="..\AgentVirtualHand\Server\TransferProgressLog.cs" Link="TransferProgressLog.cs" />
     <!-- Blokada okna jest wspolna dla obu aplikacji okienkowych. -->
     <Compile Include="..\AgentVirtualHand\Services\PasswordGate.cs" Link="PasswordGate.cs" />
     <Compile Include="..\AgentVirtualHand\ViewModels\LockViewModel.cs" Link="LockViewModel.cs" />
