@@ -148,15 +148,15 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         {
             var (request, jsonError) = await ReadJsonAsync<ExecRequest>(ctx);
             if (jsonError is not null) return jsonError;
-            if (string.IsNullOrWhiteSpace(request?.Command))
-                return Results.Json(new { error = "Pole 'command' jest wymagane." }, Json, statusCode: 400);
+            var (command, error) = PrepareCommand(request);
+            if (command is null) return error!;
 
-            Audit?.Invoke("exec", Trim(request.Command));
+            Audit?.Invoke("exec", Trim(command.AuditText));
+            // Dluzszy synchroniczny exec i tak nie wrocilby przez link, a proces zostalby poza /exec/{id}/kill.
             var result = await _shell.RunAsync(
-                request.Command,
-                request.Shell,
-                request.Cwd,
-                request.TimeoutSeconds ?? 120,
+                command,
+                request!.Cwd,
+                SyncExecTimeoutSeconds(request.TimeoutSeconds),
                 ctx.RequestAborted);
 
             return Results.Json(result, Json);
@@ -166,18 +166,28 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         {
             var (request, jsonError) = await ReadJsonAsync<ExecRequest>(ctx);
             if (jsonError is not null) return jsonError;
-            if (string.IsNullOrWhiteSpace(request?.Command))
-                return Results.Json(new { error = "Pole 'command' jest wymagane." }, Json, statusCode: 400);
+            var (command, error) = PrepareCommand(request);
+            if (command is null) return error!;
 
-            Audit?.Invoke("exec", "[bg] " + Trim(request.Command));
-            var managed = _shell.Start(request.Command, request.Shell, request.Cwd);
+            Audit?.Invoke("exec", "[bg] " + Trim(command.AuditText));
+            var managed = _shell.Start(command, request!.Cwd);
             return Results.Json(new { id = managed.Id, startedAt = managed.StartedAt, cwd = managed.WorkingDirectory }, Json);
         });
 
-        api.MapGet("/exec/{id}", (string id, int? outOffset, int? errOffset) =>
+        api.MapGet("/exec/{id}", async (HttpContext ctx, string id, int? outOffset, int? errOffset, int? wait) =>
         {
             var managed = _shell.Get(id);
             if (managed is null) return Results.Json(new { error = "Nie ma takiego procesu." }, Json, statusCode: 404);
+
+            // Long-poll: trzymamy odpowiedz do konca procesu albo do uplywu 'wait' sekund (z sufitem).
+            if (wait is > 0 && managed.ExitedAt is null)
+            {
+                // Powiazane z RequestAborted: po zerwaniu linku zadanie nie wisi do konca 'wait'.
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+                timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(wait.Value, 1, ExecLimits.MaxResponseHoldSeconds)));
+                try { await managed.Exited.WaitAsync(timeout.Token); }
+                catch (OperationCanceledException) { /* nadal biegnie albo klient sie rozlaczyl - oddajemy stan biezacy */ }
+            }
 
             var (stdout, stderr, newOut, newErr) = managed.ReadFrom(outOffset ?? 0, errOffset ?? 0);
             return Results.Json(new
@@ -236,12 +246,15 @@ public sealed class RemoteHttpServer : IAsyncDisposable
             await using (var stream = File.OpenRead(path))
                 _ = await stream.ReadAsync(buffer);
 
+            // Lagodnie: plik bez BOM czytamy jako UTF-8 z U+FFFD zamiast odrzucac (np. UTF-16 z ">" w PowerShell 5.1 ma BOM).
+            var content = BomText.Decode(buffer, Encoding.UTF8);
+
             return Results.Json(new
             {
                 path = info.FullName,
                 size = info.Length,
                 truncated = info.Length > buffer.Length,
-                content = Encoding.UTF8.GetString(buffer)
+                content
             }, Json);
         });
 
@@ -398,8 +411,47 @@ public sealed class RemoteHttpServer : IAsyncDisposable
     private static string Trim(string text)
         => text.Length <= 160 ? text : text[..160] + "...";
 
+    /// <summary>Waliduje zadanie exec i zamienia je na polecenie: 'command' wprost albo tresc skryptu.</summary>
+    private static (PreparedCommand? Command, IResult? Error) PrepareCommand(ExecRequest? request)
+    {
+        if (request is null)
+            return (null, BadRequest("Empty body - expected a JSON object."));
+
+        if (ExecScript.IsPresent(request.Script, request.ScriptBase64))
+        {
+            var script = ExecScript.Decode(request.Script, request.ScriptBase64);
+            return script is null
+                ? (null, BadRequest("Field 'scriptBase64' must be base64 of a text script: UTF-8, or UTF-16/UTF-32 with a BOM."))
+                : SaveScript(script, request.Shell);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Command))
+            return (null, BadRequest("Field 'command' or 'script' is required."));
+
+        return (PreparedCommand.Inline(request.Command, request.Shell), null);
+    }
+
+    /// <summary>Plik tymczasowy moze sie nie zapisac (pelny dysk, brak uprawnien) - klient dostaje wtedy powod zamiast pustego 500.</summary>
+    private static (PreparedCommand? Command, IResult? Error) SaveScript(string script, string? shell)
+    {
+        try { return (PreparedCommand.FromScript(script, shell), null); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (null, Results.Json(
+                new { error = "Could not save the script to a temporary file: " + ex.Message }, Json, statusCode: 500));
+        }
+    }
+
+    private static int SyncExecTimeoutSeconds(int? requested)
+        => Math.Clamp(requested ?? ExecLimits.MaxSyncExecSeconds, 1, ExecLimits.MaxSyncExecSeconds);
+
+    private static IResult BadRequest(string message)
+        => Results.Json(new { error = message }, Json, statusCode: 400);
+
     private sealed record PairRequest(string? Code, string? Client);
-    private sealed record ExecRequest(string? Command, string? Shell, string? Cwd, int? TimeoutSeconds);
+    private sealed record ExecRequest(
+        string? Command, string? Shell, string? Cwd, int? TimeoutSeconds,
+        string? Script, string? ScriptBase64);
     private sealed record WriteRequest(string? Path, string? Content, string? ContentBase64, bool? Append);
     private sealed record PathRequest(string? Path, bool? Recursive);
     private sealed record MoveRequest(string? From, string? To);

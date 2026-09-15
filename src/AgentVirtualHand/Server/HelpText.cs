@@ -6,7 +6,7 @@ namespace AgentVirtualHand.Server;
 /// </summary>
 public static class HelpText
 {
-    public static string Markdown() => """
+    public static string Markdown() => $$"""
         # AVH - remote control of a machine over Tailcat.Link
 
         Traffic goes over the Tailcat link, but the API is plain HTTP exposed locally by the
@@ -33,19 +33,33 @@ public static class HelpText
         ## Running commands
         `POST /api/exec`
         ```json
-        { "command": "dotnet --info", "shell": "powershell", "cwd": "C:\\\\Work", "timeoutSeconds": 120 }
+        { "command": "dotnet --info", "shell": "powershell", "cwd": "C:\\\\Work", "timeoutSeconds": {{ExecLimits.MaxSyncExecSeconds}} }
         ```
         Response: `exitCode`, `stdout`, `stderr`, `timedOut`, `durationMs`.
         `shell`: `powershell` | `pwsh` | `cmd` | `bash` | `sh` (defaults to the OS).
 
-        IMPORTANT: `command` is a JSON string, so every backslash must be doubled.
-        Instance name `SERVER\INSTANCE`, path `C:\Temp` - in JSON write `SERVER\\INSTANCE`
-        and `C:\\Temp`, or use `/`. A single `\` breaks the JSON and you get a parse error.
+        A plain `exec` must finish within {{ExecLimits.MaxSyncExecSeconds}} s: the link's request round-trip is capped, so
+        `timeoutSeconds` is clamped to 1-{{ExecLimits.MaxSyncExecSeconds}} (default {{ExecLimits.MaxSyncExecSeconds}}) and a slower command is killed with
+        `timedOut: true`. Anything that may run longer than that -
+        installs, builds, restores, long scripts - MUST go through `/api/exec/start` (below).
+
+        Multi-line scripts: instead of `command`, send the whole body as `script` (lines separated
+        by `\n`). It is saved to a temp file and run as one script, so no nested shell quoting:
+        ```json
+        { "script": "Get-ChildItem C:\\Temp | Format-Table\nWrite-Host done", "shell": "powershell" }
+        ```
+        `command` and `script` are both ordinary JSON strings: every backslash must still be doubled
+        (`SERVER\\INSTANCE`, `C:\\Temp`, or use `/`), and `"` must be written as `\"`. A single `\`
+        breaks the JSON and you get a parse error.
+        To avoid JSON escaping entirely, send `scriptBase64` - the UTF-8 script body encoded as base64.
+        UTF-16/UTF-32 bodies need a BOM; other bytes (e.g. ANSI code pages) are rejected with 400.
 
         Long operations (installs, builds, running services):
-        - `POST /api/exec/start` - same fields, returns `{ "id": "..." }`
-        - `GET  /api/exec/{id}?outOffset=0&errOffset=0` - incremental output; pass the returned
-          `outOffset`/`errOffset` on the next call, `running` tells whether the process is alive
+        - `POST /api/exec/start` - same fields (`command` or `script`), returns `{ "id": "..." }`
+        - `GET  /api/exec/{id}?outOffset=0&errOffset=0&wait={{ExecLimits.MaxResponseHoldSeconds}}` - incremental output; pass the returned
+          `outOffset`/`errOffset` on the next call, `running` tells whether the process is alive.
+          `wait=N` (1-{{ExecLimits.MaxResponseHoldSeconds}} s) holds the response until the process exits or N seconds pass, so you poll
+          far less - just call again with the new offsets while `running` is true.
         - `POST /api/exec/{id}/stdin` - body = text sent to the process stdin
         - `POST /api/exec/{id}/kill` - kill the process with its child tree
 

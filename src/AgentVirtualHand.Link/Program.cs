@@ -114,15 +114,7 @@ public static class Program
                     : (Get("/api/session"), null);
 
             case "exec":
-            {
-                var command = Arg(rest, 0) ?? throw new ArgumentException("Provide a command: avh-link exec \"<command>\"");
-                return (Post("/api/exec", Json(new
-                {
-                    command,
-                    cwd = Option(rest, "--cwd"),
-                    timeoutSeconds = OptionInt(rest, "--timeout") ?? 120,
-                })), null);
-            }
+                return (Post("/api/exec", ExecBody(rest, "avh-link exec", defaultTimeoutSeconds: ExecLimits.MaxSyncExecSeconds)), null);
 
             case "bg":
                 return (BackgroundRequest(rest), null);
@@ -143,20 +135,13 @@ public static class Program
         switch (action)
         {
             case "start":
-            {
-                var command = Arg(rest, 0) ?? throw new ArgumentException("Provide a command: avh-link bg start \"<command>\"");
-                return Post("/api/exec/start", Json(new
-                {
-                    command,
-                    cwd = Option(rest, "--cwd"),
-                    timeoutSeconds = OptionInt(rest, "--timeout") ?? 3600,
-                }));
-            }
+                return Post("/api/exec/start", ExecBody(rest, "avh-link bg start", defaultTimeoutSeconds: 3600));
 
             case "out":
             {
                 var id = Required(rest, 0, "avh-link bg out <id>");
                 var query = $"outOffset={OptionInt(rest, "--out-offset") ?? 0}&errOffset={OptionInt(rest, "--err-offset") ?? 0}";
+                if (OptionInt(rest, "--wait") is { } wait) query += $"&wait={wait}";
                 return Get($"/api/exec/{id}", query);
             }
 
@@ -173,6 +158,27 @@ public static class Program
             default:
                 throw new ArgumentException($"Unknown background action: {action}");
         }
+    }
+
+    /// <summary>
+    /// Cialo exec: polecenie z argumentu albo lokalny plik skryptu z --script-file. Skrypt idzie jako
+    /// scriptBase64, wiec wieloliniowa tresc nie wymaga escapowania ani w powloce, ani w JSON.
+    /// </summary>
+    private static string ExecBody(string[] args, string usage, int defaultTimeoutSeconds)
+    {
+        var scriptFile = Option(args, "--script-file");
+        var command = scriptFile is null
+            ? Arg(args, 0) ?? throw new ArgumentException($"Provide a command: {usage} \"<command>\" or {usage} --script-file <path>")
+            : null;
+
+        return Json(new
+        {
+            command,
+            scriptBase64 = scriptFile is null ? null : Convert.ToBase64String(File.ReadAllBytes(scriptFile)),
+            shell = Option(args, "--shell"),
+            cwd = Option(args, "--cwd"),
+            timeoutSeconds = OptionInt(args, "--timeout") ?? defaultTimeoutSeconds,
+        });
     }
 
     private static (LinkRequest Request, string? SaveTo) FileRequest(string[] args)
@@ -321,7 +327,7 @@ public static class Program
     private static int? OptionInt(string[] args, string name) =>
         int.TryParse(Option(args, name), out var value) ? value : null;
 
-    private static void PrintUsage() => Console.WriteLine("""
+    private static void PrintUsage() => Console.WriteLine($$"""
         avh-link - remote shell and files over Tailcat.Link (no IP addresses, no ports)
 
         CONNECTION
@@ -331,9 +337,12 @@ public static class Program
           avh-link forget                     remove the pairing from this machine
 
         COMMANDS
-          avh-link exec "<command>" [--cwd <path>] [--timeout <seconds>]
-          avh-link bg start "<command>" [--cwd <path>] [--timeout <seconds>]
-          avh-link bg out <id> [--out-offset N] [--err-offset N]
+          avh-link exec "<command>" | --script-file <path> [--shell <name>] [--cwd <path>] [--timeout <seconds>]
+          avh-link bg start "<command>" | --script-file <path> [--shell <name>] [--cwd <path>] [--timeout <seconds>]
+          avh-link bg out <id> [--out-offset N] [--err-offset N] [--wait <seconds, 1-{{ExecLimits.MaxResponseHoldSeconds}}>]
+
+          --script-file sends a local multi-line script as-is (no escaping); plain exec is killed after {{ExecLimits.MaxSyncExecSeconds}} s max,
+          longer work goes through bg start + bg out --wait {{ExecLimits.MaxResponseHoldSeconds}}.
           avh-link bg stdin <id> "<text>"
           avh-link bg kill <id>
 

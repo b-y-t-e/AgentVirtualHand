@@ -20,6 +20,8 @@
   <ItemGroup>
     <!-- Koperta protokolu jest wspolna z hostem - jeden plik, zeby obie strony nie rozjechaly sie w locie. -->
     <Compile Include="..\AgentVirtualHand\Server\LinkProtocol.cs" Link="LinkProtocol.cs" />
+    <!-- Domyslny timeout i opis limitow exec biora sie z tych samych stalych, ktore wymusza host. -->
+    <Compile Include="..\AgentVirtualHand\Server\ExecLimits.cs" Link="ExecLimits.cs" />
   </ItemGroup>
 
 </Project>

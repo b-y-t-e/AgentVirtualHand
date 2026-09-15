@@ -128,9 +128,9 @@ a separate `links/<id>` folder - that is where connection isolation comes from.
 | `avh-link forget` | remove the pairing from this machine |
 | `avh-link system` | host, user, OS, shell, drives |
 | `avh-link session` \| `session end` | remaining time / finish work |
-| `avh-link exec "<command>" [--cwd <path>] [--timeout <s>]` | shell command |
-| `avh-link bg start "<command>"` | long operation in the background, returns `id` |
-| `avh-link bg out <id> [--out-offset N] [--err-offset N]` | incremental output, `running`, `exitCode` |
+| `avh-link exec "<command>" \| --script-file <path> [--shell <name>] [--cwd <path>] [--timeout <s>]` | shell command or local multi-line script; killed after 22 s max |
+| `avh-link bg start "<command>" \| --script-file <path> [--shell <name>] [--cwd <path>]` | long operation in the background, returns `id` |
+| `avh-link bg out <id> [--out-offset N] [--err-offset N] [--wait <s, 1-25>]` | incremental output, `running`, `exitCode`; `--wait` holds until exit or N seconds |
 | `avh-link bg stdin <id> "<text>"` \| `bg kill <id>` | process stdin / kill the process tree |
 | `avh-link fs list \| read \| write \| download \| upload \| mkdir \| delete \| move` | file operations |
 | `avh-link api` | remote machine's API reference |
@@ -141,7 +141,8 @@ Example:
 
 ```bash
 avh-link join tco2FwWCBNh-cOZl4meH0AA3DXgL1BNLQyisn3_T7hLFbOY5...
-avh-link exec "winget install --id Git.Git -e --silent" --timeout 600
+avh-link bg start "winget install --id Git.Git -e --silent"
+avh-link bg out <id> --wait 25
 avh-link fs download C:/Work/log.txt ./log.txt
 ```
 
