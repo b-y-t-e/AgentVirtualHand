@@ -8,7 +8,7 @@ AVH is an emergency remote-control tool. A **host** app runs on the machine to b
 exposes it over **Tailcat.Link** (no IP, no open port). A **client** connects and runs shell
 commands and file operations. There are two clients: a windowed hub and a text CLI.
 
-Three projects, one solution (`AgentVirtualHand.slnx`), .NET 10, Tailcat.Link **0.5.0**:
+Three projects, one solution (`AgentVirtualHand.slnx`), .NET 10, Tailcat.Link **0.5.2** (NuGet):
 
 - `src/AgentVirtualHand` -> builds **`avh`** (host GUI, and `--headless` mode). Avalonia + Kestrel.
 - `src/AgentVirtualHand.Hub` -> builds **`avh-hub`** (windowed client, list of machines).
@@ -29,6 +29,9 @@ dotnet build -c Release AgentVirtualHand.slnx    # build all three
 python build.py                                  # standalone single-file exes -> publish/win-x64
 python build.py --only host --clean              # one app; --rid linux-x64 for Linux
 ```
+
+On Windows the publish folder also gets `msquic.dll` (from the package's `buildTransitive` targets).
+It must ship next to the exe; without it QUIC is missing and every session silently uses the relay.
 
 Always stop running processes before publishing (the exe locks its own file):
 `Get-Process avh,avh-hub,avh-link | Stop-Process -Force`.
@@ -122,6 +125,8 @@ check large transfers with a SHA-256 in both directions.
 - `HeartbeatInterval` is set to **5 s** on both ends (`LinkHost`, `LinkConnection`), below Tailcat's
   ~10 s silence threshold. The default 15 s let an idle relayed link drop and reconnect every 10 s.
   Do not raise it back without re-checking idle behaviour over the relay.
+- Tailcat.Link is consumed only as a NuGet package - do not add a project reference to its source.
+  Its changelog is the package release notes; 0.5.2 keeps relay sessions alive through cuts.
 - Tailcat.Link rejects a `LinkContent` with an empty `ContentType`; `LinkWire` always defaults to
   `application/octet-stream` (the real type rides in the envelope).
 - `MediaTypeHeaderValue`'s constructor throws on `application/json; charset=utf-8`; use `TryParse`

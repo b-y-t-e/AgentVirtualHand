@@ -8,7 +8,9 @@
 | `avh-hub` | the helping machine - a window with a list of machines |
 | `avh-link` | the helping machine - a command-line client for one machine |
 
-Each is a single file with the .NET runtime inside - copy it and run it.
+Each is a single file with the .NET runtime inside - copy it and run it. On Windows, copy
+`msquic.dll` from the same folder next to it: without it the machines still connect, but always
+through the relay, which is slower.
 
 ## The avh window
 
