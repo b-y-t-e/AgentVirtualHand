@@ -1,143 +1,106 @@
 # AVH
 
-An emergency "remote hand" for a machine: an Avalonia app (Windows + Linux) exposes a machine
-over **Tailcat.Link**, and a paired client (for example Claude Code on another computer) can run
-shell commands, install software, write and compile code, and manage files.
+An emergency "remote hand" for a machine. You run **`avh`** on the machine that needs help, and a
+paired client (for example Claude Code on another computer) can run shell commands, install
+software, and manage files there.
 
-The connection does not use an IP address: there is no host, port, or firewall rule. The two
-machines meet over the link, and the only thing that passes through a human is a single-use
-invite code.
+The machines connect over **Tailcat.Link**: no IP address, no open port, no firewall rule. The
+only thing a person passes between them is a single-use invite code. Access is **granted for a
+set time** and **expires on its own**.
 
-Access is **granted for a set time**, **expires on its own**, and is **fully visible** in the
-app's log.
+> **Warning.** A connected client has the full rights of the account `avh` runs under. There is
+> no sandbox and no command allow-list. Only let in machines you trust, and turn AVH off when you
+> are done.
+
+## Quick start
+
+```bash
+# 1. on the machine that needs help
+avh                          # click Start link -> Invite machine -> Copy code
+
+# 2. on the helping machine
+avh-link join <code>
+avh-link exec "hostname"
+```
 
 ## How it works
 
 1. On the controlled machine: **Start link**, pick **how long to let a machine in** (15 min, 1 h,
-   4 h or 8 h), and click **Invite machine**. The app shows a code valid for 15 minutes.
-2. Pass the code to where the client will run: `avh-link join <code>`, or paste it in the
-   **avh-hub** window. The code lets **one** machine in and **disappears once used**.
-3. The machine that used it works immediately - it appears in the list with a countdown. Passing
-   the code is already the decision to let it in, so there is no separate confirmation.
-4. When the time runs out, the machine loses access and needs a new code. Meanwhile you can
-   **Extend** each machine (a menu picks how much time to add) or **Cut off** its access,
-   **Delete** unpairs it for good, and **Cut off all** ends work for everyone.
+   4 h or 8 h), and click **Invite machine**. The code is valid for 15 minutes.
+2. Use the code on the client: `avh-link join <code>`, or paste it in the **avh-hub** window.
+   The code lets **one** machine in and **disappears once used**.
+3. That machine can work right away. It shows up in the list with a countdown.
+4. When the time runs out, the machine loses access. In the list you can:
+   - **Extend** - add more time;
+   - **Let in** - give an already paired machine access again, without a new code;
+   - **Cut off** - end that machine's access; other machines keep working;
+   - **Delete** - unpair it for good; it needs a new code to come back;
+   - **Cut off all** - end access for everyone and kill all running processes.
 
 Several machines can work at once, each with its own time window and its own token.
 
-The first command brings the link up in the background (a dozen or so seconds), later ones run in
-about 0.7 s. `avh-link down` closes the background link, `avh-link up` brings it back.
+## Installation
 
-## Password lock
+Download or build three single-file programs (the .NET runtime is included):
 
-Both windows - the controlled machine and the hub - are password protected. First launch
-**forces** you to set one; there is no default password, because anyone who downloaded the file
-would know it. After **30 seconds** without mouse or keyboard the window content disappears and
-returns only after the password is entered. A wrong attempt costs a **10-second** countdown
-during which the button is disabled. A countdown in the status bar shows the time left before the
-window locks. The lock can be turned off entirely with the **auto-lock** switch in the status bar;
-with it off the window opens straight to its content and never locks, and the choice is remembered.
+| Program | Where it runs |
+| --- | --- |
+| `avh` | the machine being controlled (GUI, or `--headless` on a server) |
+| `avh-hub` | the helping machine - a window with a list of machines |
+| `avh-link` | the helping machine - a command-line client for one machine |
 
-Only a PBKDF2-SHA256 hash (210k iterations, random salt) is kept, in `lock.json` next to the
-app settings. A forgotten password cannot be recovered - delete that file and set a new one on
-the next start.
-
-## Security
-
-What is in place:
-
-- window locked by password after 30 s idle (can be turned off), with a 10 s penalty for a wrong attempt;
-- the HTTP server is only an internal bus, listens **on 127.0.0.1 only** and on a
-  system-assigned port - there is nothing to scan from the network, no port is exposed;
-- transport between machines is set up by Tailcat.Link (encrypted, with its own node identity);
-- single-use invite code valid for 15 minutes; **New code** invalidates the previous one;
-- the code grants access only for the set time: once it passes, the machine can do nothing
-  without another code, even though the pairing remains;
-- the session token never leaves the controlled machine - the client neither knows nor forwards it;
-- a hard session time limit; **Cut off** kills the session and every running process;
-- closing the app window ends the session and stops the link;
-- every command and file operation goes to the live log in the GUI, each with a one-line
-  plain-language note from the client saying why it ran (the `X-AVH-Note` header).
-
-What is **not** there, and what to keep in mind:
-
-- a paired client has the full rights of the account the app runs under - there is no sandbox
-  and no allow-list of commands;
-- pairing is persistent (trust on first use): after the first `join` the other machine comes
-  back without a code. Remove it with `avh-link forget` (or **Remove** in the hub) on the client
-  side, and with the **Delete** action next to the machine name on the host side;
-- the invite code is **single-use**: it lets one machine in and expires after use. Another
-  machine needs a new code (**New code**);
-- several clients can work on one machine at once and **see each other's changes** - it is the
-  same machine, not separate sandboxes;
-- this is an emergency tool. Turn it on when you need help, turn it off when the problem is solved.
-
-## Running
+Build from source (needs the .NET 10 SDK and Python 3):
 
 ```bash
-dotnet run --project src/AgentVirtualHand          # controlled machine's GUI
-dotnet build -c Release AgentVirtualHand.slnx      # build everything
+python build.py                     # win-x64 -> publish/win-x64
+python build.py --rid linux-x64     # Linux
+python build.py --only hub --clean  # a single app, cleaning the output folder first
 ```
 
-Headless mode (server, SSH) - the invite code lands on the console, and once used the next one
-is printed:
+For development: `dotnet build -c Release AgentVirtualHand.slnx`.
+
+### Headless mode
+
+On a server or over SSH, without a desktop:
 
 ```bash
 avh --headless --minutes 60
 ```
 
-Standalone release (one file per app, no .NET installed on the target machine):
+The invite code is printed to the console. Every machine that joins gets access at once, and the
+next code is printed. **Ctrl+C** cuts everyone off.
 
-```bash
-python build.py                     # win-x64 -> publish/win-x64
-python build.py --rid linux-x64     # Linux release
-python build.py --only hub --clean  # a single app, cleaning the output folder
-```
+## Password lock
 
-The script builds three files: `avh` (controlled machine), `avh-hub` and `avh-link`
-(the two kinds of client). The .NET runtime and native libraries are inside, so on the target
-machine you only copy one file.
+Both windows (`avh` and `avh-hub`) ask you to set a password on first start - there is no default
+one. After **30 s** without mouse or keyboard the window hides its content until you type the
+password. A wrong password blocks the button for **10 s**. The **auto-lock** switch in the status
+bar turns the lock off.
 
-## Two kinds of client
+Only a PBKDF2-SHA256 hash is stored, in `lock.json`. Forgot the password? Delete that file and set
+a new one. The lock only hides the window - it does not stop someone who can reach the files.
 
-You can connect to the controlled machine two ways - both speak the same protocol, so the host
-sees no difference.
+## Clients
 
-**avh-hub** - a windowed app with a list of computers. Each connection gets its **own port on
-127.0.0.1 and its own token**, and "Copy prompt" builds the model's instructions for that one
-machine only. That is the point: the model gets one computer's address and token and has no way
-to reach the others. Each connection can be turned off without touching the rest, and "New token"
-invalidates every prompt copied earlier for that machine.
-
-```bash
-avh-hub                                  # window with the list of computers
-avh-hub --pair <code> --name labsvcn     # add a machine from the command line
-```
-
-The list and tokens live in `%APPDATA%\avh-hub\connections.json`, and each machine's pairing in
-a separate `links/<id>` folder - that is where connection isolation comes from.
-
-**avh-link** - a text client for a single machine, described below.
-
-## Client commands
+### avh-link (command line)
 
 | Command | Description |
 | --- | --- |
-| `avh-link join <code>` | pair using a single-use code from the app window |
-| `avh-link up` \| `down` | bring up or close the background link |
+| `avh-link join <code>` | pair using the invite code |
+| `avh-link up` \| `down` | start or stop the background link |
 | `avh-link forget` | remove the pairing from this machine |
 | `avh-link system` | host, user, OS, shell, drives |
-| `avh-link session` \| `session end` | remaining time / finish work |
-| `avh-link exec "<command>" \| --script-file <path> [--shell <name>] [--cwd <path>] [--timeout <s>]` | shell command or local multi-line script; killed after 22 s max |
-| `avh-link bg start "<command>" \| --script-file <path> [--shell <name>] [--cwd <path>]` | long operation in the background, returns `id` |
-| `avh-link bg out <id> [--out-offset N] [--err-offset N] [--wait <s, 1-25>]` | incremental output, `running`, `exitCode`; `--wait` holds until exit or N seconds |
-| `avh-link bg stdin <id> "<text>"` \| `bg kill <id>` | process stdin / kill the process tree |
+| `avh-link session` \| `session end` | time left / end your access |
+| `avh-link exec "<command>"` | run a command (max 22 s) |
+| `avh-link exec --script-file <path>` | run a local multi-line script as-is, no escaping |
+| `avh-link bg start "<command>"` \| `--script-file <path>` | long job in the background, returns `id` |
+| `avh-link bg out <id> [--wait <s>]` | job output; `--wait` (1-25 s) waits for the job to finish |
+| `avh-link bg stdin <id> "<text>"` \| `bg kill <id>` | send input / kill the job with its child processes |
 | `avh-link fs list \| read \| write \| download \| upload \| mkdir \| delete \| move` | file operations |
-| `avh-link api` | remote machine's API reference |
-| `avh-link --help` | the client's own usage |
-| `--store <dir>` | different place for the pairing (or `AVH_LINK_STORE`) |
+| `avh-link api` | full API reference of the remote machine |
+| `avh-link --help` | all options (`--shell`, `--cwd`, `--timeout`, `--store`, ...) |
 
-Example:
+The first command starts the link in the background (10-20 s); later commands take about 0.7 s.
 
 ```bash
 avh-link join tco2FwWCBNh-cOZl4meH0AA3DXgL1BNLQyisn3_T7hLFbOY5...
@@ -146,31 +109,85 @@ avh-link bg out <id> --wait 25
 avh-link fs download C:/Work/log.txt ./log.txt
 ```
 
-In Windows paths use `/` or doubled backslashes.
+On Windows, write paths with `/` or double every backslash.
 
-## Layout
+A plain `exec` is killed after **22 s**, because a single request over the link must come back
+within about 30 s. Installs, builds, and anything slow go through `bg start` + `bg out --wait`.
+
+`avh-link` keeps file transfers in memory - use `avh-hub` for large files.
+
+### avh-hub (window)
+
+A list of machines (**Add computer** takes an invite code). For each one, **Copy prompt** gives a
+ready instruction for an AI model with that machine's local address (`http://127.0.0.1:<port>`)
+and token. Each machine has its own port and token, so a model given one prompt cannot reach the
+other machines. **New token** invalidates prompts copied earlier.
+
+```bash
+avh-hub                                  # the window
+avh-hub --pair <code> --name labsvcn     # add a machine from the command line
+```
+
+The hub streams uploads and downloads of **any size**. Files never have to fit in memory, a
+transfer resumes after a short link drop, and a half-finished upload never overwrites the target
+file.
+
+The list of machines and their tokens is kept in `%APPDATA%\avh-hub\connections.json`; each
+machine's pairing is in its own `links/<id>` folder.
+
+## Security
+
+What protects you:
+
+- the code is single-use and valid for 15 minutes; **New code** cancels the previous one;
+- access ends when the chosen time runs out; after that the machine can do nothing until you let
+  it in again, even though it stays paired;
+- the HTTP API listens **only on 127.0.0.1**, on a random port - nothing is exposed to the network;
+- the link between the machines is encrypted by Tailcat.Link;
+- the session token never leaves the controlled machine;
+- a file transfer stops as soon as that machine's access ends;
+- closing the `avh` window cuts everyone off and stops the link;
+- commands, scripts, file writes, uploads, deletes and moves are shown in the log, together with a
+  short note from the client explaining why (`X-AVH-Note`).
+
+What to keep in mind:
+
+- **full rights, no sandbox** - a client can do anything the account can, including leaving
+  something running or installed after its access ends;
+- **Cut off** for a single machine ends its access but does **not** stop processes it already
+  started. **Cut off all** or **Stop link** kills them;
+- the log is not a complete record: file reads, listings, `mkdir` and text sent to a job's stdin
+  are not shown, and the explanation note is written by the client itself;
+- **pairing stays** until you **Delete** the machine on the host, or run `avh-link forget`
+  (**Remove computer** in the hub) on the client;
+- machines working at the same time see each other's changes and background jobs;
+- the hub keeps tokens in plain text in `connections.json`, and **Copy prompt** puts the token
+  into the AI model's context;
+- this is an emergency tool: turn it on when you need help, and off when the problem is solved.
+
+## Project layout
 
 ```
-src/AgentVirtualHand/
-  Program.cs                 GUI start + --headless mode
-  Server/SessionManager.cs   access window, token, session lifetime
-  Server/RemoteHttpServer.cs Kestrel on 127.0.0.1 + all endpoints
-  Server/LinkHost.cs         Tailcat.Link -> forwarding requests to loopback
-  Server/HiddenLinkStore.cs  pairing state under a neutral file name
-  Server/LinkProtocol.cs     envelope exchanged with the client (shared with avh-link)
-  Server/ShellRunner.cs      running commands and background processes
-  Server/HelpText.cs         reference returned by /api/help
-  Services/                  settings, app-data paths, password lock
+src/AgentVirtualHand/              avh - the controlled machine
+  Program.cs                       GUI start + --headless mode
+  Server/SessionManager.cs         access window and token per machine
+  Server/LinkHost.cs               Tailcat.Link handler: session check, forwarding to loopback
+  Server/StreamedFileTransfers.cs  uploads/downloads straight to/from disk
+  Server/RemoteHttpServer.cs       Kestrel on 127.0.0.1, all endpoints
+  Server/ShellRunner.cs            commands and background jobs
+  Server/ShellDialect.cs           powershell / pwsh / cmd / bash / sh
+  Server/LinkProtocol.cs           message format shared with both clients
+  Server/HelpText.cs               reference returned by /api/help
+  ViewModels/, Views/              the window
+  Services/                        settings, data paths, password lock
 
-src/AgentVirtualHand.Link/
-  Program.cs                 avh-link client: commands -> envelopes
-  LinkDaemon.cs              background link + named pipe for commands
+src/AgentVirtualHand.Link/         avh-link
+  Program.cs                       commands -> requests
+  LinkDaemon.cs                    background link + named pipe
 
-src/AgentVirtualHand.Hub/
-  Services/LinkConnection.cs one connection: link + own port and token on 127.0.0.1
-  Services/ConnectionStore.cs list of machines, tokens, pairing folders
-  Services/PromptBuilder.cs  the model's prompt - for one machine
-  ViewModels/HubViewModel.cs connection list: add, turn on/off, remove
-  ViewModels/MainViewModel.cs app state and GUI logic
-  Views/MainWindow.axaml     interface
+src/AgentVirtualHand.Hub/          avh-hub
+  Services/LinkConnection.cs       one machine: link + local port and token
+  Services/ConnectionStore.cs      saved machines and tokens
+  Services/PromptBuilder.cs        prompt for one machine
+  ViewModels/HubViewModel.cs       machine list: add, turn on/off, remove
 ```
