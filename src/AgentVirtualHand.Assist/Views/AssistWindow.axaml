@@ -15,14 +15,20 @@
     <TextBlock Text="Support code" FontSize="13"
                Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" />
 
-    <Border Background="{DynamicResource Raised}" CornerRadius="8" Padding="18,16">
-      <TextBlock Text="{Binding Code}" IsVisible="{Binding HasCode}"
+    <Border Background="{DynamicResource Raised}" CornerRadius="8" Padding="18,16"
+            IsVisible="{Binding HasCode}" Cursor="Hand"
+            PointerPressed="OnCopyCode" ToolTip.Tip="Click to copy">
+      <SelectableTextBlock Text="{Binding Code}"
                  FontSize="15" TextWrapping="Wrap" TextAlignment="Center"
                  Foreground="{DynamicResource Text}" />
     </Border>
 
     <TextBlock Text="Starting…" IsVisible="{Binding !HasCode}" FontSize="13"
                Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" />
+
+    <TextBlock x:Name="CopyHint" Text="Click the code to copy it" FontSize="12"
+               IsVisible="{Binding HasCode}" Foreground="{DynamicResource Muted}"
+               HorizontalAlignment="Center" />
 
     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
       <Ellipse Width="6" Height="6" Fill="{DynamicResource Ok}" VerticalAlignment="Center" />
