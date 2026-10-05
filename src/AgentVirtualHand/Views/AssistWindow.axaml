@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AgentVirtualHand.ViewModels"
+        x:Class="AgentVirtualHand.Views.AssistWindow"
+        x:DataType="vm:AssistViewModel"
+        Title="Support"
+        Width="440" Height="300"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Bg}"
+        FontFamily="Cascadia Mono, Consolas, monospace">
+
+  <StackPanel Margin="36" Spacing="18" VerticalAlignment="Center">
+
+    <TextBlock Text="Support code" FontSize="13"
+               Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" />
+
+    <Border Background="{DynamicResource Raised}" CornerRadius="8" Padding="18,16">
+      <TextBlock Text="{Binding Code}" IsVisible="{Binding HasCode}"
+                 FontSize="15" TextWrapping="Wrap" TextAlignment="Center"
+                 Foreground="{DynamicResource Text}" />
+    </Border>
+
+    <TextBlock Text="Starting…" IsVisible="{Binding !HasCode}" FontSize="13"
+               Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" />
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+      <Ellipse Width="6" Height="6" Fill="{DynamicResource Ok}" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding ConnectedText}" FontSize="12.5"
+                 Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+    </StackPanel>
+
+  </StackPanel>
+</Window>

@@ -29,6 +29,18 @@ For each machine in the list:
 | **Delete** | unpair it for good - it needs a new code to come back |
 | **Cut off all** | end access for everyone and kill all their processes |
 
+## Assist mode
+
+A stripped-down screen for an untrained person at the other end:
+
+```bash
+avh --assist
+```
+
+One small window, no buttons, no password. On launch it connects, shows the support code, and lets
+in every machine that uses it for as long as the app stays open. It only shows the code and how
+many machines are connected. Closing the window cuts everyone off.
+
 ## Headless mode
 
 On a server or over SSH, without a desktop:

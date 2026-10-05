@@ -74,6 +74,11 @@ Always stop running processes before publishing (the exe locks its own file):
   Tailcat pairing folder (`links/<id>`). `PromptBuilder` bakes one machine's URL and token into
   the model prompt, so a prompt for one machine cannot reach another.
 
+- **Assist mode** (`avh --assist`, `App.AssistMode`) is a separate minimal window
+  (`AssistViewModel` + `AssistWindow`) that starts the link itself, keeps a valid invite code up,
+  auto-admits every peer for the app's lifetime (`SessionManager.SessionDuration` set huge), and
+  shows only the code and a connected count - no password, no buttons. Normal GUI path is unchanged.
+
 ## Security rules - do not regress
 
 - Every host endpoint except `/api/status` goes through `AuthFilter`; anything that skips loopback
