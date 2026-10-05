@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace AgentVirtualHand.Views;
+namespace AgentVirtualHand.Assist.Views;
 
 public partial class AssistWindow : Window
 {

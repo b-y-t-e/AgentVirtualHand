@@ -3,5 +3,6 @@
     <Project Path="src/AgentVirtualHand/AgentVirtualHand.csproj" />
     <Project Path="src/AgentVirtualHand.Link/AgentVirtualHand.Link.csproj" />
     <Project Path="src/AgentVirtualHand.Hub/AgentVirtualHand.Hub.csproj" />
+    <Project Path="src/AgentVirtualHand.Assist/AgentVirtualHand.Assist.csproj" />
   </Folder>
 </Solution>

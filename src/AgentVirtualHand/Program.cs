@@ -30,9 +30,6 @@ internal static class Program
         if (args.Contains("--headless"))
             return RunHeadless(args).GetAwaiter().GetResult();
 
-        // Tryb "assist": minimalne okno, kod od razu, dostep do konca dzialania aplikacji.
-        App.AssistMode = args.Contains("--assist");
-
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
         // Twarda gwarancja: zamknięte okno = martwy proces. Nic nie może utrzymywać

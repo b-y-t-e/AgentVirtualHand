@@ -39,6 +39,11 @@ APPS: dict[str, tuple[str, str, str]] = {
         "avh-link",
         "klient tekstowy: polecenia dla jednej maszyny",
     ),
+    "assist": (
+        "src/AgentVirtualHand.Assist",
+        "avh-assist",
+        "minimalny ekran pomocy: kod od razu, dostep na czas dzialania",
+    ),
 }
 
 

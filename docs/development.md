@@ -39,6 +39,11 @@ src/AgentVirtualHand.Link/         avh-link
   Program.cs                       commands -> requests
   LinkDaemon.cs                    background link + named pipe
 
+src/AgentVirtualHand.Assist/       avh-assist - minimal support screen
+  Program.cs, App.axaml            links the host engine (Server/*.cs) + its own window
+  ViewModels/AssistViewModel.cs    starts link, keeps a code up, admits peers for the app's life
+  Views/AssistWindow.axaml         code + connected count, no buttons
+
 src/AgentVirtualHand.Hub/          avh-hub
   Services/LinkConnection.cs       one machine: link + local port and token
   Services/ConnectionStore.cs      saved machines and tokens

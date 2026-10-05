@@ -13,6 +13,7 @@ Three projects, one solution (`AgentVirtualHand.slnx`), .NET 10, Tailcat.Link **
 - `src/AgentVirtualHand` -> builds **`avh`** (host GUI, and `--headless` mode). Avalonia + Kestrel.
 - `src/AgentVirtualHand.Hub` -> builds **`avh-hub`** (windowed client, list of machines).
 - `src/AgentVirtualHand.Link` -> builds **`avh-link`** (text client for one machine).
+- `src/AgentVirtualHand.Assist` -> builds **`avh-assist`** (minimal support screen). Avalonia + Kestrel.
 
 Some files live in the host project and are linked into the clients via `<Compile Include>` /
 `<AvaloniaResource Include>`. **Edit the original, not a copy**:
@@ -74,10 +75,12 @@ Always stop running processes before publishing (the exe locks its own file):
   Tailcat pairing folder (`links/<id>`). `PromptBuilder` bakes one machine's URL and token into
   the model prompt, so a prompt for one machine cannot reach another.
 
-- **Assist mode** (`avh --assist`, `App.AssistMode`) is a separate minimal window
-  (`AssistViewModel` + `AssistWindow`) that starts the link itself, keeps a valid invite code up,
+- **avh-assist is its own project/exe** (`src/AgentVirtualHand.Assist`, `AssistViewModel` +
+  `AssistWindow`), not a flag on the host. It links the host engine via `Server\*.cs` (and
+  `SingleInstance.cs`, using the same `"avh-host"` mutex so host and assist never run at once -
+  they share the Tailcat pairing file). It starts the link itself, keeps a valid invite code up,
   auto-admits every peer for the app's lifetime (`SessionManager.SessionDuration` set huge), and
-  shows only the code and a connected count - no password, no buttons. Normal GUI path is unchanged.
+  shows only the code and a connected count - no password, no buttons.
 
 ## Security rules - do not regress
 

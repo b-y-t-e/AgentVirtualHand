@@ -7,6 +7,7 @@
 | `avh` | the machine being controlled (window, or `--headless` on a server) |
 | `avh-hub` | the helping machine - a window with a list of machines |
 | `avh-link` | the helping machine - a command-line client for one machine |
+| `avh-assist` | the machine being controlled - a minimal support screen (no buttons, no password) |
 
 Each is a single file with the .NET runtime inside - copy it and run it. On Windows, copy
 `msquic.dll` from the same folder next to it: without it the machines still connect, but always
@@ -29,17 +30,18 @@ For each machine in the list:
 | **Delete** | unpair it for good - it needs a new code to come back |
 | **Cut off all** | end access for everyone and kill all their processes |
 
-## Assist mode
+## avh-assist
 
-A stripped-down screen for an untrained person at the other end:
+A separate, stripped-down program for an untrained person at the other end - just run it:
 
 ```bash
-avh --assist
+avh-assist
 ```
 
 One small window, no buttons, no password. On launch it connects, shows the support code, and lets
-in every machine that uses it for as long as the app stays open. It only shows the code and how
-many machines are connected. Closing the window cuts everyone off.
+in every machine that uses it for as long as the window stays open. It shows only the code and how
+many machines are connected. Closing the window cuts everyone off and stops the link. Only one of
+`avh` / `avh-assist` runs at a time (they share the pairing identity).
 
 ## Headless mode
 

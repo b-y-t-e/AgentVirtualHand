@@ -38,6 +38,9 @@ then on it sends commands and `avh` runs them, until the time runs out.
   avh-link exec "hostname"
   ```
 
+For an untrained person on the controlled machine there is also **avh-assist**: a tiny window that
+shows the support code and nothing else (see [Usage](docs/usage.md)).
+
 ## Security in short
 
 - The code works once and expires after 15 minutes. Access expires at the chosen time.

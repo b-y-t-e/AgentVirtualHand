@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using AgentVirtualHand.Server;
 using Avalonia.Threading;
 
-namespace AgentVirtualHand.ViewModels;
+namespace AgentVirtualHand.Assist.ViewModels;
 
 /// <summary>
 /// Minimalny ekran pomocy ("assist"): po uruchomieniu sam stawia link, sam wystawia kod i wpuszcza
