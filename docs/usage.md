@@ -39,8 +39,7 @@ avh-assist
 ```
 
 One small window, no buttons, no password. On launch it connects, shows the support code, and lets
-in every machine that uses it for as long as the window stays open. It shows only the code and how
-many machines are connected. Closing the window cuts everyone off and stops the link. Only one of
+in every machine that uses it for as long as the window stays open. It shows only the code (with a Copy button) and how many machines are connected. Closing the window cuts everyone off and stops the link. Only one of
 `avh` / `avh-assist` runs at a time (they share the pairing identity).
 
 ## Headless mode

@@ -4,7 +4,7 @@
         x:Class="AgentVirtualHand.Assist.Views.AssistWindow"
         x:DataType="vm:AssistViewModel"
         Title="Support"
-        Width="440" Height="300"
+        Width="440" Height="320"
         CanResize="False"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bg}"
@@ -26,9 +26,9 @@
     <TextBlock Text="Starting…" IsVisible="{Binding !HasCode}" FontSize="13"
                Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" />
 
-    <TextBlock x:Name="CopyHint" Text="Click the code to copy it" FontSize="12"
-               IsVisible="{Binding HasCode}" Foreground="{DynamicResource Muted}"
-               HorizontalAlignment="Center" />
+    <Button x:Name="CopyButton" Classes="primary" Content="Copy code"
+            IsVisible="{Binding HasCode}" HorizontalAlignment="Center"
+            Click="OnCopyCode" />
 
     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
       <Ellipse Width="6" Height="6" Fill="{DynamicResource Ok}" VerticalAlignment="Center" />

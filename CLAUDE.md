@@ -80,7 +80,7 @@ Always stop running processes before publishing (the exe locks its own file):
   `SingleInstance.cs`, using the same `"avh-host"` mutex so host and assist never run at once -
   they share the Tailcat pairing file). It starts the link itself, keeps a valid invite code up,
   auto-admits every peer for the app's lifetime (`SessionManager.SessionDuration` set huge), and
-  shows only the code and a connected count - no password, no buttons.
+  shows only the code (with a Copy button) and a connected count - no password, no settings.
 
 ## Security rules - do not regress
 
