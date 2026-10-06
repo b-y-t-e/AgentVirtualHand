@@ -42,6 +42,10 @@ One small window, no buttons, no password. On launch it connects, shows the supp
 in every machine that uses it for as long as the window stays open. It shows only the code (with a Copy button) and how many machines are connected. Closing the window cuts everyone off and stops the link. Only one of
 `avh` / `avh-assist` runs at a time (they share the pairing identity).
 
+**Self-wipe (optional).** Set the environment variable `AVH_ASSIST_WIPEWORD` to a secret word
+before launching. Typing that word in the window closes the program and deletes `avh-assist.exe`
+and `msquic.dll` (and the folder if empty). Without the variable the feature is off.
+
 ## Headless mode
 
 On a server or over SSH, without a desktop:

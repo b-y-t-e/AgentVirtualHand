@@ -81,6 +81,11 @@ Always stop running processes before publishing (the exe locks its own file):
   they share the Tailcat pairing file). It starts the link itself, keeps a valid invite code up,
   auto-admits every peer for the app's lifetime (`SessionManager.SessionDuration` set huge), and
   shows only the code (with a Copy button) and a connected count - no password, no settings.
+- **Self-wipe** (`SelfWipe`): if env var `AVH_ASSIST_WIPEWORD` is set, typing that word in the window
+  cuts everyone off, stops the link, closes, and deletes the running `avh-assist.exe` + the adjacent
+  `msquic.dll` (and the folder if empty). A detached `cmd`/`sh` waits for the process to exit (the
+  exe is locked while running) then deletes, then deletes itself. Scope is only those two files - no
+  logs or anything else. The word is never hard-coded (public repo); no env var = feature off.
 
 ## Security rules - do not regress
 
