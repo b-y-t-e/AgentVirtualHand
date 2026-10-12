@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>avh-link</AssemblyName>
     <RootNamespace>AgentVirtualHand.Link</RootNamespace>
+    <ApplicationIcon>Assets\avh-link.ico</ApplicationIcon>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>

@@ -9,12 +9,17 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AssemblyName>avh-hub</AssemblyName>
     <RootNamespace>AgentVirtualHand.Hub</RootNamespace>
+    <ApplicationIcon>Assets\avh-hub.ico</ApplicationIcon>
     <InvariantGlobalization>true</InvariantGlobalization>
 
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\avh-hub.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

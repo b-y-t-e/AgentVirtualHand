@@ -11,12 +11,17 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AssemblyName>avh-assist</AssemblyName>
     <RootNamespace>AgentVirtualHand.Assist</RootNamespace>
+    <ApplicationIcon>Assets\avh-assist.ico</ApplicationIcon>
 
     <!-- Jeden plik .exe z runtime i bibliotekami natywnymi w srodku. -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\avh-assist.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

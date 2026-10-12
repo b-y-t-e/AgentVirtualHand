@@ -3,6 +3,7 @@
         xmlns:vm="using:AgentVirtualHand.Assist.ViewModels"
         x:Class="AgentVirtualHand.Assist.Views.AssistWindow"
         x:DataType="vm:AssistViewModel"
+        Icon="/Assets/avh-assist.ico"
         Title="Support"
         Width="440" Height="320"
         CanResize="False"

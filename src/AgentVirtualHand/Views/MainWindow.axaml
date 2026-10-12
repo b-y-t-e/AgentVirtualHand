@@ -3,6 +3,7 @@
         xmlns:vm="using:AgentVirtualHand.ViewModels"
         x:Class="AgentVirtualHand.Views.MainWindow"
         x:DataType="vm:MainViewModel"
+        Icon="/Assets/avh.ico"
         Title="AVH"
         Width="760" Height="680"
         MinWidth="660" MinHeight="540"

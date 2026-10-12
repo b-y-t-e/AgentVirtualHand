@@ -3,6 +3,7 @@
         xmlns:vm="using:AgentVirtualHand.Hub.ViewModels"
         x:Class="AgentVirtualHand.Hub.Views.MainWindow"
         x:DataType="vm:HubViewModel"
+        Icon="/Assets/avh-hub.ico"
         Title="AVH Hub"
         Width="760" Height="660"
         MinWidth="660" MinHeight="520"
