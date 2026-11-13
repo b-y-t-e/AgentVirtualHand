@@ -1,10 +1,13 @@
 using AgentVirtualHand.Services;
+using AgentVirtualHand.Server;
 using Avalonia;
 
 namespace AgentVirtualHand.Assist;
 
 internal static class Program
 {
+    internal static bool StartMinimized { get; private set; }
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -14,6 +17,17 @@ internal static class Program
         {
             SingleInstance.WarnAlreadyRunning("Support", "Support is already running on this machine.");
             return 1;
+        }
+
+        // Read only local pairing state, before showing the window (no network wait or flash).
+        try
+        {
+            StartMinimized = new HiddenLinkStore().LoadAsync("agentvirtualhand")
+                .GetAwaiter().GetResult()?.IsPaired == true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"Cannot read pairing state: {ex.Message}");
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

@@ -7,7 +7,7 @@
 | `avh` | the machine being controlled (window, or `--headless` on a server) |
 | `avh-hub` | the helping machine - a window with a list of machines |
 | `avh-link` | the helping machine - a command-line client for one machine |
-| `avh-assist` | the machine being controlled - a minimal support screen (no buttons, no password) |
+| `avh-assist` | the machine being controlled - a minimal support screen (no password) |
 
 Each is a single file with the .NET runtime inside - copy it and run it. On Windows, copy
 `msquic.dll` from the same folder next to it: without it the machines still connect, but always
@@ -38,13 +38,19 @@ A separate, stripped-down program for an untrained person at the other end - jus
 avh-assist
 ```
 
-One small window, no buttons, no password. On launch it connects, shows the support code, and lets
-in every machine that uses it for as long as the window stays open. It shows only the code (with a Copy button) and how many machines are connected. Closing the window cuts everyone off and stops the link. Only one of
+One small window, no password. On launch it connects, shows the support code, and lets
+in every machine that uses it for as long as the application is running. It shows the code (with a Copy button) and how many machines are connected. Closing the window cuts everyone off and stops the link. Only one of
 `avh` / `avh-assist` runs at a time (they share the pairing identity).
+
+**Start with Windows** is off by default. Enable the checkbox to launch Assist when the current
+user signs in; uncheck it to remove autostart. After a machine has been paired, subsequent launches
+start minimized, including manual launches. Restore the window from the taskbar to see the code
+or change autostart. Minimizing keeps Assist running and connected.
 
 **Self-wipe (optional).** Set the environment variable `AVH_ASSIST_WIPEWORD` to a secret word
 before launching. Typing that word in the window closes the program and deletes `avh-assist.exe`
-and `msquic.dll` (and the folder if empty). Without the variable the feature is off.
+and `msquic.dll` (and the folder if empty), and removes its Windows autostart entry. Without the
+variable the feature is off.
 
 ## Headless mode
 

@@ -5,7 +5,7 @@
         x:DataType="vm:AssistViewModel"
         Icon="/Assets/avh-assist.ico"
         Title="Support"
-        Width="440" Height="320"
+        Width="440" SizeToContent="Height" MinHeight="320"
         CanResize="False"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bg}"
@@ -36,6 +36,12 @@
       <TextBlock Text="{Binding ConnectedText}" FontSize="12.5"
                  Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
     </StackPanel>
+
+    <CheckBox Content="Start with Windows" IsChecked="{Binding AutostartEnabled, Mode=TwoWay}"
+              IsVisible="{Binding CanAutostart}" HorizontalAlignment="Center" />
+
+    <TextBlock Text="{Binding StartupError}" IsVisible="{Binding HasStartupError}"
+               FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Danger}" />
 
   </StackPanel>
 </Window>

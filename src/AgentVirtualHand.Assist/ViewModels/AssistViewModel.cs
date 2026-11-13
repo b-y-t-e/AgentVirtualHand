@@ -7,8 +7,8 @@ namespace AgentVirtualHand.Assist.ViewModels;
 
 /// <summary>
 /// Minimalny ekran pomocy ("assist"): po uruchomieniu sam stawia link, sam wystawia kod i wpuszcza
-/// kazda maszyne na caly czas dzialania aplikacji. Zadnych przyciskow ani ustawien - widac tylko kod
-/// do polaczenia i licznik podlaczonych. Zamkniecie okna odcina wszystkich i zatrzymuje link.
+/// kazda maszyne na caly czas dzialania aplikacji. Pokazuje kod, licznik i opcje autostartu.
+/// Zamkniecie okna odcina wszystkich i zatrzymuje link.
 /// </summary>
 public sealed class AssistViewModel : INotifyPropertyChanged
 {
@@ -24,9 +24,18 @@ public sealed class AssistViewModel : INotifyPropertyChanged
     private bool _inviting;
     private string _code = "";
     private int _connected;
+    private readonly AssistStartup _startup = new();
+    private bool _autostartEnabled;
+    private string _startupError = "";
 
     public AssistViewModel()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            try { _autostartEnabled = _startup.IsEnabled(); }
+            catch (Exception ex) { StartupError = $"Cannot read startup setting: {ex.Message}"; }
+        }
+
         _server = new RemoteHttpServer(_sessions, _shell);
         _link = new LinkHost(_sessions);
 
@@ -50,6 +59,47 @@ public sealed class AssistViewModel : INotifyPropertyChanged
     }
 
     public bool HasCode => Code.Length > 0;
+
+    public bool CanAutostart => AssistStartup.IsSupported;
+
+    public bool AutostartEnabled
+    {
+        get => _autostartEnabled;
+        set
+        {
+            if (value == _autostartEnabled || !OperatingSystem.IsWindows()) return;
+            UpdateAutostart(value);
+        }
+    }
+
+    internal bool UpdateAutostart(bool enabled)
+    {
+        if (!OperatingSystem.IsWindows()) return true;
+        try
+        {
+            _startup.SetEnabled(enabled);
+            Set(ref _autostartEnabled, enabled, nameof(AutostartEnabled));
+            StartupError = "";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StartupError = $"Cannot change startup setting: {ex.Message}";
+            OnPropertyChanged(nameof(AutostartEnabled));
+            return false;
+        }
+    }
+
+    public string StartupError
+    {
+        get => _startupError;
+        private set
+        {
+            if (Set(ref _startupError, value)) OnPropertyChanged(nameof(HasStartupError));
+        }
+    }
+
+    public bool HasStartupError => StartupError.Length > 0;
 
     public string ConnectedText => _connected switch
     {

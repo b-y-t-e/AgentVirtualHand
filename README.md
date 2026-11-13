@@ -39,7 +39,9 @@ then on it sends commands and `avh` runs them, until the time runs out.
   ```
 
 For an untrained person on the controlled machine there is also **avh-assist**: a tiny window that
-shows the support code and nothing else (see [Usage](docs/usage.md)).
+shows the support code and connection count (see [Usage](docs/usage.md)). Its **Start with Windows**
+option is off by default and applies to the current user. Once paired, Assist starts minimized
+on subsequent launches, including automatic startup; restore it from the taskbar to see the code.
 
 ## Security in short
 

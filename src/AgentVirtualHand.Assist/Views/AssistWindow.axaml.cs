@@ -45,9 +45,19 @@ public partial class AssistWindow : Window
 
     private void Wipe()
     {
+        // Do not leave a startup entry pointing at an executable that is about to be deleted.
+        // Abort if the entry cannot be removed, even when DataContext is unexpectedly null.
+        var vm = DataContext as AssistViewModel;
+        if (vm == null)
+        {
+            System.Diagnostics.Trace.WriteLine("Wipe aborted: DataContext is null, cannot remove startup entry.");
+            return;
+        }
+        if (!vm.UpdateAutostart(false)) return;
+
         // Odetnij wszystkich i zatrzymaj link, zaplanuj skasowanie plikow, a potem wyjdz -
         // osobny proces czeka az ten zniknie i dopiero kasuje exe (w trakcie dzialania zablokowany).
-        (DataContext as AssistViewModel)?.ShutdownBlocking();
+        vm.ShutdownBlocking();
         SelfWipe.Schedule();
         Environment.Exit(0);
     }

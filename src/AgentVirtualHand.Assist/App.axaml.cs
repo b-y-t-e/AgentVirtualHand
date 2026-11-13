@@ -1,6 +1,7 @@
 using AgentVirtualHand.Assist.ViewModels;
 using AgentVirtualHand.Assist.Views;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 
@@ -15,7 +16,12 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var assist = new AssistViewModel();
-            desktop.MainWindow = new AssistWindow { DataContext = assist };
+            desktop.MainWindow = new AssistWindow
+            {
+                DataContext = assist,
+                WindowState = Program.StartMinimized ? WindowState.Minimized : WindowState.Normal,
+                ShowActivated = !Program.StartMinimized,
+            };
 
             // Zamkniecie okna odcina wszystkich i zatrzymuje link (na watku roboczym, jak host).
             desktop.ShutdownRequested += (_, _) => assist.ShutdownBlocking();
