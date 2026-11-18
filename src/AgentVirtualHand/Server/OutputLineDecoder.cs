@@ -10,7 +10,8 @@ namespace AgentVirtualHand.Server;
 /// sqlcmd -u) pisza UTF-16, a znak UTF-16 moze zawierac bajt 0A/0D, wiec ciecie po bajtach psuloby tekst.
 /// Z gotowej linii zdejmujemy BOM i NUL. Instancja ma stan, wiec jedna na potok.
 /// </summary>
-public sealed class OutputLineDecoder(Action<string> onLine)
+/// <param name="onPartial">Kawalek linii dluzszej niz <paramref name="maxLineBytes"/> (bez separatora); domyslnie <paramref name="onLine"/>.</param>
+public sealed class OutputLineDecoder(Action<string> onLine, int maxLineBytes = int.MaxValue, Action<string>? onPartial = null)
 {
     private const byte LineFeed = 0x0A;
     private const byte CarriageReturn = 0x0D;
@@ -29,19 +30,37 @@ public sealed class OutputLineDecoder(Action<string> onLine)
     private int _scannedUpTo;
     private Encoding? _scannedEncoding;
 
-    /// <summary>Czyta potok do konca i przekazuje kolejne linie; blad odczytu (np. zabity proces) konczy potok.</summary>
-    public static async Task PumpAsync(Stream stream, Action<string> onLine)
+    /// <summary>
+    /// Czyta potok do konca i zapisuje linie w <paramref name="output"/>; blad odczytu (np. zabity proces) konczy potok.
+    /// Po odlaczeniu <paramref name="output"/> potok jest dalej oprozniany (piszacy nie dostaje EPIPE ani nie staje
+    /// na pelnym potoku), ale bez dekodowania i bez gromadzenia czegokolwiek.
+    /// </summary>
+    /// <param name="maxLineBytes">Dluzsza linia bez LF jest oddawana w kawalkach, zeby bufor nie rosl bez konca.</param>
+    public static async Task PumpAsync(Stream stream, BoundedOutput output, int maxLineBytes)
     {
-        var decoder = new OutputLineDecoder(onLine);
+        var decoder = new OutputLineDecoder(output.AppendLine, maxLineBytes, output.AppendPartial);
         var buffer = new byte[4096];
         try
         {
             int read;
-            while ((read = await stream.ReadAsync(buffer)) > 0)
-                decoder.Append(buffer.AsSpan(0, read));
+            while ((read = await stream.ReadAsync(buffer).ConfigureAwait(false)) > 0)
+            {
+                if (output.IsDetached) decoder.Discard();
+                else decoder.Append(buffer.AsSpan(0, read));
+            }
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* potok zamkniety */ }
-        decoder.Complete();
+        if (!output.IsDetached) decoder.Complete();
+    }
+
+    /// <summary>Porzuca niedokonczona linie i zwalnia jej bufor.</summary>
+    public void Discard()
+    {
+        if (_pending.Capacity == 0) return;
+        _pending.Clear();
+        _pending.Capacity = 0;
+        _scannedEncoding = null;
+        _scannedUpTo = 0;
     }
 
     public void Append(ReadOnlySpan<byte> chunk)
@@ -77,6 +96,16 @@ public sealed class OutputLineDecoder(Action<string> onLine)
 
             var encoding = ChooseEncoding(rest);
             var length = LineLength(rest, encoding, ResumeScanAt(encoding));
+            if (length < 0 && !endOfStream && rest.Length >= maxLineBytes)
+            {
+                var chunk = ForcedChunkLength(rest, encoding);
+                _scannedEncoding = null;
+                _lastEncoding = encoding;
+                _lastLineEndedWithUtf8Terminator = false;
+                (onPartial ?? onLine)(Clean(encoding.GetString(rest[..chunk])));
+                consumed += chunk;
+                continue;
+            }
             if (length < 0 && !endOfStream)
             {
                 RememberScanned(rest.Length, encoding);
@@ -199,6 +228,31 @@ public sealed class OutputLineDecoder(Action<string> onLine)
             sample = sample[consumed..];
         }
         return true;
+    }
+
+    /// <summary>
+    /// Kawalek zbyt dlugiej linii, uciety na granicy znaku: w UTF-16 parzysty i bez rozcinania pary zastepczej,
+    /// w UTF-8 przed bajtem kontynuacji. Kawalek nie zawiera terminatora (inaczej linia bylaby pelna).
+    /// </summary>
+    private static int ForcedChunkLength(ReadOnlySpan<byte> rest, Encoding encoding)
+    {
+        if (encoding == Encoding.Unicode)
+        {
+            var even = rest.Length & ~1;
+            var endsWithHighSurrogate = even >= 2 && rest[even - 1] is >= 0xD8 and <= 0xDB;
+            return endsWithHighSurrogate ? even - 2 : even;
+        }
+
+        // Ostatni znak moze byc niepelny: od jego bajtu wiodacego sprawdzamy, czy miesci sie w calosci.
+        var length = rest.Length;
+        for (var i = length - 1; i >= Math.Max(1, length - 4); i--)
+        {
+            var lead = rest[i];
+            if ((lead & 0xC0) == 0x80) continue;
+            var width = lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : lead >= 0xC0 ? 2 : 1;
+            return i + width > length ? i : length;
+        }
+        return length;
     }
 
     /// <summary>Wznowienie skanu ma sens tylko w tym samym kodowaniu, w ktorym linie przeszukano.</summary>

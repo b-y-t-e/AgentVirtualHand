@@ -15,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Tailcat.Link" Version="0.5.9" />
+    <PackageReference Include="Tailcat.Link" Version="0.5.10" />
   </ItemGroup>
 
   <ItemGroup>

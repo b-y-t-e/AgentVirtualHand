@@ -177,7 +177,7 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         api.MapGet("/exec/{id}", async (HttpContext ctx, string id, int? outOffset, int? errOffset, int? wait) =>
         {
             var managed = _shell.Get(id);
-            if (managed is null) return Results.Json(new { error = "Nie ma takiego procesu." }, Json, statusCode: 404);
+            if (managed is null) return Results.Json(new { error = "Process not found." }, Json, statusCode: 404);
 
             // Long-poll: trzymamy odpowiedz do konca procesu albo do uplywu 'wait' sekund (z sufitem).
             if (wait is > 0 && managed.ExitedAt is null)
@@ -189,7 +189,8 @@ public sealed class RemoteHttpServer : IAsyncDisposable
                 catch (OperationCanceledException) { /* nadal biegnie albo klient sie rozlaczyl - oddajemy stan biezacy */ }
             }
 
-            var (stdout, stderr, newOut, newErr) = managed.ReadFrom(outOffset ?? 0, errOffset ?? 0);
+            var (stdout, stderr, newOut, newErr, stdoutTruncated, stderrTruncated) =
+                managed.ReadFrom(outOffset ?? 0, errOffset ?? 0);
             return Results.Json(new
             {
                 id = managed.Id,
@@ -197,6 +198,8 @@ public sealed class RemoteHttpServer : IAsyncDisposable
                 exitCode = managed.ExitCode,
                 stdout,
                 stderr,
+                stdoutTruncated,
+                stderrTruncated,
                 outOffset = newOut,
                 errOffset = newErr
             }, Json);
@@ -205,19 +208,19 @@ public sealed class RemoteHttpServer : IAsyncDisposable
         api.MapPost("/exec/{id}/stdin", async (string id, HttpContext ctx) =>
         {
             var managed = _shell.Get(id);
-            if (managed is null) return Results.Json(new { error = "Nie ma takiego procesu." }, Json, statusCode: 404);
+            if (managed is null) return Results.Json(new { error = "Process not found." }, Json, statusCode: 404);
 
             using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
             var text = await reader.ReadToEndAsync();
-            await managed.Process.StandardInput.WriteLineAsync(text);
-            await managed.Process.StandardInput.FlushAsync();
+            if (!await managed.TrySendInputAsync(text))
+                return Results.Json(new { error = "Process input is unavailable." }, Json, statusCode: 409);
             return Results.Json(new { sent = true }, Json);
         });
 
         api.MapPost("/exec/{id}/kill", (string id) =>
             _shell.Kill(id)
                 ? Results.Json(new { killed = true }, Json)
-                : Results.Json(new { error = "Nie ma takiego procesu." }, Json, statusCode: 404));
+                : Results.Json(new { error = "Process not found." }, Json, statusCode: 404));
 
         api.MapGet("/fs/list", (string path) =>
         {

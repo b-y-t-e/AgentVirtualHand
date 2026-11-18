@@ -8,7 +8,7 @@ AVH is an emergency remote-control tool. A **host** app runs on the machine to b
 exposes it over **Tailcat.Link** (no IP, no open port). A **client** connects and runs shell
 commands and file operations. There are two clients: a windowed hub and a text CLI.
 
-Three projects, one solution (`AgentVirtualHand.slnx`), .NET 10, Tailcat.Link **0.5.3** (NuGet):
+Three projects, one solution (`AgentVirtualHand.slnx`), .NET 10, Tailcat.Link **0.5.10** (NuGet):
 
 - `src/AgentVirtualHand` -> builds **`avh`** (host GUI, and `--headless` mode). Avalonia + Kestrel.
 - `src/AgentVirtualHand.Hub` -> builds **`avh-hub`** (windowed client, list of machines).
@@ -61,6 +61,11 @@ Always stop running processes before publishing (the exe locks its own file):
   capped at 25 s (`MaxResponseHoldSeconds`, the `wait=` long-poll on `/api/exec/{id}`), and a sync
   `exec` at 22 s (`MaxSyncExecSeconds`, leaving time to drain output). Host, HelpText, PromptBuilder
   and `avh-link` usage all read these constants - never hard-code the numbers.
+- **Output memory** (`BoundedOutput`): stdout/stderr keep at most `MaxOutputCharsPerStream` chars
+  (`stdoutTruncated`/`stderrTruncated`), and only the last `MaxCompletedBackgroundProcesses` finished
+  background results are kept. A grandchild (`srv &`, `start /b`) can hold the pipe after the shell
+  exits; once a result is returned (sync exec) or dropped (eviction, `KillAll`) its buffer is
+  `Detach`ed and the pipe is only drained, never closed from our side (no EPIPE for the grandchild).
 - **Scripts.** `exec` accepts `command`, `script` or `scriptBase64`. `PreparedCommand` writes a
   script to a private temp dir (`CreateTempSubdirectory`, 0700 on Unix) and `ShellDialect` decides
   how each shell runs it (extension, encoding, exit code). Process output is split into lines by

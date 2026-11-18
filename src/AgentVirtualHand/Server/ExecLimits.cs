@@ -6,6 +6,12 @@ namespace AgentVirtualHand.Server;
 /// </summary>
 public static class ExecLimits
 {
+    /// <summary>Ile zakonczonych procesow w tle trzymamy do odczytu; starsze id zwracaja 404.</summary>
+    public const int MaxCompletedBackgroundProcesses = 16;
+
+    /// <summary>Limit zachowanego wyjscia na strumien (stdout/stderr), dla exec i procesow w tle.</summary>
+    public const int MaxOutputCharsPerStream = 512 * 1024;
+
     /// <summary>Najdluzej trzymana odpowiedz - pod ~30 s progiem rundy transportu, wiec zawsze zdazy wrocic.</summary>
     public const int MaxResponseHoldSeconds = 25;
 

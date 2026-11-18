@@ -9,6 +9,8 @@ public sealed record ExecResult(
     int ExitCode,
     string Stdout,
     string Stderr,
+    bool StdoutTruncated,
+    bool StderrTruncated,
     bool TimedOut,
     long DurationMs,
     string Shell,
@@ -17,10 +19,12 @@ public sealed record ExecResult(
 /// <summary>Długo działający proces, z ktorego klient odpytuje output przyrostowo.</summary>
 public sealed class ManagedProcess
 {
-    private readonly StringBuilder _stdout = new();
-    private readonly StringBuilder _stderr = new();
     private readonly object _lock = new();
     private readonly TaskCompletionSource _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Potoki pisza tu bezposrednio, wiec ich odczyt nie trzyma calego obiektu procesu.</summary>
+    internal BoundedOutput Stdout { get; } = new(ExecLimits.MaxOutputCharsPerStream);
+    internal BoundedOutput Stderr { get; } = new(ExecLimits.MaxOutputCharsPerStream);
 
     public required string Id { get; init; }
     public required Process Process { get; init; }
@@ -33,9 +37,6 @@ public sealed class ManagedProcess
     /// <summary>Konczy sie, gdy proces zakończy działanie - pozwala na long-poll bez odpytywania w pętli.</summary>
     public Task Exited => _exited.Task;
 
-    public void AppendStdout(string line) { lock (_lock) _stdout.AppendLine(line); }
-    public void AppendStderr(string line) { lock (_lock) _stderr.AppendLine(line); }
-
     public void MarkExited(int exitCode)
     {
         lock (_lock)
@@ -46,17 +47,37 @@ public sealed class ManagedProcess
         _exited.TrySetResult();
     }
 
-    /// <summary>Zwraca output od podanego offsetu (w znakach) razem z nowym offsetem.</summary>
-    public (string Stdout, string Stderr, int OutOffset, int ErrOffset) ReadFrom(int outOffset, int errOffset)
+    /// <summary>Wysyla linie na stdin; false, gdy proces sie zakonczyl albo nie przyjmuje wejscia.</summary>
+    public async Task<bool> TrySendInputAsync(string text)
     {
-        lock (_lock)
+        if (ExitedAt is not null) return false;
+        try
         {
-            var o = outOffset < 0 || outOffset > _stdout.Length ? 0 : outOffset;
-            var e = errOffset < 0 || errOffset > _stderr.Length ? 0 : errOffset;
-            var outChunk = _stdout.ToString(o, _stdout.Length - o);
-            var errChunk = _stderr.ToString(e, _stderr.Length - e);
-            return (outChunk, errChunk, _stdout.Length, _stderr.Length);
+            var input = Process.StandardInput;
+            await input.WriteLineAsync(text);
+            await input.FlushAsync();
+            return true;
         }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Zwraca output od podanego offsetu (w znakach) razem z nowym offsetem.</summary>
+    public (string Stdout, string Stderr, int OutOffset, int ErrOffset, bool StdoutTruncated, bool StderrTruncated)
+        ReadFrom(int outOffset, int errOffset)
+    {
+        var (stdout, newOut, stdoutTruncated) = Stdout.ReadFrom(outOffset);
+        var (stderr, newErr, stderrTruncated) = Stderr.ReadFrom(errOffset);
+        return (stdout, stderr, newOut, newErr, stdoutTruncated, stderrTruncated);
+    }
+
+    /// <summary>Wynik wypadl z historii: zwalnia bufory, a potoki trzymane przez wnuka sa juz tylko oprozniane.</summary>
+    internal void DetachOutput()
+    {
+        Stdout.Detach();
+        Stderr.Detach();
     }
 }
 
@@ -66,6 +87,8 @@ public sealed class ManagedProcess
 public sealed class ShellRunner
 {
     private readonly ConcurrentDictionary<string, ManagedProcess> _processes = new();
+    private readonly object _processLock = new();
+    private readonly Queue<string> _completed = new();
 
     /// <summary>Polecenia procesow w tle, po id - ich pliki skryptow trzeba skasowac takze przy zamykaniu hosta.</summary>
     private readonly ConcurrentDictionary<string, PreparedCommand> _backgroundCommands = new();
@@ -93,11 +116,11 @@ public sealed class ShellRunner
         var sw = Stopwatch.StartNew();
         using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
-        var stdout = new StringBuilder();
-        var stderr = new StringBuilder();
+        var stdout = new BoundedOutput(ExecLimits.MaxOutputCharsPerStream);
+        var stderr = new BoundedOutput(ExecLimits.MaxOutputCharsPerStream);
 
         process.Start();
-        var output = PumpOutputLines(process, line => AppendLine(stdout, line), line => AppendLine(stderr, line));
+        var output = PumpOutputLines(process, stdout, stderr);
 
         var timedOut = false;
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -116,10 +139,19 @@ public sealed class ShellRunner
         await WaitForOutputAsync(output);
         sw.Stop();
 
+        var (stdoutText, stdoutTruncated) = stdout.Snapshot();
+        var (stderrText, stderrTruncated) = stderr.Snapshot();
+        // Wnuk (np. "srv &") moze trzymac potok dalej - po oddaniu wyniku juz go tylko oprozniamy.
+        stdout.Detach();
+        stderr.Detach();
+        ReleaseOutputStreams(process, output);
+
         return new ExecResult(
             ExitCode: timedOut ? -1 : process.ExitCode,
-            Stdout: Snapshot(stdout),
-            Stderr: Snapshot(stderr),
+            Stdout: stdoutText,
+            Stderr: stderrText,
+            StdoutTruncated: stdoutTruncated,
+            StderrTruncated: stderrTruncated,
             TimedOut: timedOut,
             DurationMs: sw.ElapsedMilliseconds,
             Shell: psi.FileName,
@@ -131,10 +163,10 @@ public sealed class ShellRunner
     {
         try
         {
-            var managed = StartManaged(command, workingDirectory);
-            _backgroundCommands[managed.Id] = command;
-            _ = managed.Exited.ContinueWith(_ => ReleaseBackgroundCommand(managed.Id), TaskScheduler.Default);
-            return managed;
+            lock (_processLock)
+            {
+                return StartManaged(command, workingDirectory);
+            }
         }
         catch
         {
@@ -160,20 +192,84 @@ public sealed class ShellRunner
             WorkingDirectory = cwd
         };
 
-        process.Start();
-        var output = PumpOutputLines(process, managed.AppendStdout, managed.AppendStderr);
-        _ = MarkExitedAfterOutputDrainsAsync(process, managed, output);
+        try { process.Start(); }
+        catch
+        {
+            process.Dispose();
+            throw;
+        }
 
         _processes[managed.Id] = managed;
+        _backgroundCommands[managed.Id] = command;
+        _ = CompleteProcessAsync(managed);
         return managed;
     }
 
     /// <summary>Czekamy na ostatnie linie stdout/stderr, zeby long-poll nie oddal running=false bez konca wyjscia.</summary>
-    private static async Task MarkExitedAfterOutputDrainsAsync(Process process, ManagedProcess managed, Task output)
+    private async Task CompleteProcessAsync(ManagedProcess managed)
     {
-        await process.WaitForExitAsync();
-        await WaitForOutputAsync(output);
-        managed.MarkExited(ExitCodeOf(process));
+        var process = managed.Process;
+        var output = PumpOutputLines(process, managed.Stdout, managed.Stderr);
+        var exitCode = -1;
+        try
+        {
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            exitCode = ExitCodeOf(process);
+            await WaitForOutputAsync(output).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseProcessResources(process, output);
+            ReleaseBackgroundCommand(managed.Id);
+            RememberCompleted(managed, exitCode);
+        }
+    }
+
+    /// <summary>
+    /// Zwalnia uchwyt procesu i stdin od razu, a potoki wyjscia dopiero gdy sie zamkna: wnuk
+    /// (np. "srv &amp;") moze wciaz do nich pisac i nie moze dostac EPIPE przez zamkniecie z naszej strony.
+    /// </summary>
+    private static void ReleaseProcessResources(Process process, Task output)
+    {
+        process.StandardInput.BaseStream.Dispose();
+        ReleaseOutputStreams(process, output);
+        process.Dispose();
+    }
+
+    /// <summary>
+    /// Odczytane potoki wyjscia trzeba zamknac samemu - Process.Dispose ich nie zamyka. Robimy to dopiero,
+    /// gdy sie skoncza, bo wnuk moze do nich jeszcze pisac.
+    /// </summary>
+    private static void ReleaseOutputStreams(Process process, Task output)
+    {
+        var stdout = process.StandardOutput;
+        var stderr = process.StandardError;
+        _ = output.ContinueWith(_ =>
+        {
+            stdout.Dispose();
+            stderr.Dispose();
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>Dopisuje proces do zakonczonych i usuwa najstarszy wynik ponad limit; dzialajacych nie rusza.</summary>
+    private void RememberCompleted(ManagedProcess managed, int exitCode)
+    {
+        lock (_processLock)
+        {
+            if (_processes.ContainsKey(managed.Id))
+            {
+                _completed.Enqueue(managed.Id);
+                if (_completed.Count > ExecLimits.MaxCompletedBackgroundProcesses
+                    && _processes.TryRemove(_completed.Dequeue(), out var oldest))
+                    oldest.DetachOutput();
+            }
+            else
+            {
+                // Juz usuniety (KillAll) - wyniku nikt nie odczyta.
+                managed.DetachOutput();
+            }
+            managed.MarkExited(exitCode);
+        }
     }
 
     /// <summary>
@@ -204,14 +300,19 @@ public sealed class ShellRunner
     /// <summary>Zabija procesy w tle i od razu kasuje ich skrypty - kontynuacja po Exited moze nie zdazyc przed koncem hosta.</summary>
     public void KillAll()
     {
-        foreach (var managed in _processes.Values)
+        lock (_processLock)
         {
-            TryKill(managed.Process);
-            WaitForKilledExit(managed.Process);
-            ReleaseBackgroundCommand(managed.Id);
+            foreach (var managed in _processes.Values)
+            {
+                TryKill(managed.Process);
+                WaitForKilledExit(managed.Process);
+                ReleaseBackgroundCommand(managed.Id);
+                managed.DetachOutput();
+            }
+            _processes.Clear();
+            _completed.Clear();
+            PreparedCommand.DeleteScriptDirectory();
         }
-        _processes.Clear();
-        PreparedCommand.DeleteScriptDirectory();
     }
 
     private void ReleaseBackgroundCommand(string id)
@@ -238,22 +339,14 @@ public sealed class ShellRunner
         }
     }
 
-    /// <summary>Czyta surowe bajty stdout/stderr i przekazuje zdekodowane linie; konczy sie, gdy oba potoki sie zamkna.</summary>
-    private static Task PumpOutputLines(Process process, Action<string> onStdout, Action<string> onStderr)
+    /// <summary>Czyta surowe bajty stdout/stderr i zapisuje zdekodowane linie; konczy sie, gdy oba potoki sie zamkna.</summary>
+    private static Task PumpOutputLines(Process process, BoundedOutput stdout, BoundedOutput stderr)
         => Task.WhenAll(
-            OutputLineDecoder.PumpAsync(process.StandardOutput.BaseStream, onStdout),
-            OutputLineDecoder.PumpAsync(process.StandardError.BaseStream, onStderr));
+            OutputLineDecoder.PumpAsync(process.StandardOutput.BaseStream, stdout, MaxPendingLineBytes),
+            OutputLineDecoder.PumpAsync(process.StandardError.BaseStream, stderr, MaxPendingLineBytes));
 
-    /// <summary>Wnuk trzymajacy potok moze dopisywac po uplywie czasu na oproznienie, wiec builder chroni blokada.</summary>
-    private static void AppendLine(StringBuilder output, string line)
-    {
-        lock (output) output.AppendLine(line);
-    }
-
-    private static string Snapshot(StringBuilder output)
-    {
-        lock (output) return output.ToString();
-    }
+    /// <summary>Linia bez LF dluzsza niz tyle bajtow jest oddawana w kawalkach - bufor dekodera nie rosnie bez konca.</summary>
+    private const int MaxPendingLineBytes = 64 * 1024;
 
     /// <summary>Stdin procesu w UTF-8 bez BOM - tak jak ustawiamy wejscie powloki (chcp 65001 / [Console]::InputEncoding).</summary>
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);

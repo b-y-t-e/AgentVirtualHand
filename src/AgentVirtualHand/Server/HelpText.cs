@@ -40,7 +40,8 @@ public static class HelpText
 
         A plain `exec` must finish within {{ExecLimits.MaxSyncExecSeconds}} s: the link's request round-trip is capped, so
         `timeoutSeconds` is clamped to 1-{{ExecLimits.MaxSyncExecSeconds}} (default {{ExecLimits.MaxSyncExecSeconds}}) and a slower command is killed with
-        `timedOut: true`. Anything that may run longer than that -
+        `timedOut: true`. Only the first {{ExecLimits.MaxOutputCharsPerStream}} characters of stdout/stderr are returned
+        (`stdoutTruncated`/`stderrTruncated` = true when cut). Anything that may run longer than that -
         installs, builds, restores, long scripts - MUST go through `/api/exec/start` (below).
 
         Multi-line scripts: instead of `command`, send the whole body as `script` (lines separated
@@ -58,6 +59,9 @@ public static class HelpText
         - `POST /api/exec/start` - same fields (`command` or `script`), returns `{ "id": "..." }`
         - `GET  /api/exec/{id}?outOffset=0&errOffset=0&wait={{ExecLimits.MaxResponseHoldSeconds}}` - incremental output; pass the returned
           `outOffset`/`errOffset` on the next call, `running` tells whether the process is alive.
+          Background output keeps the first {{ExecLimits.MaxOutputCharsPerStream}} characters per stream and reports
+          `stdoutTruncated`/`stderrTruncated` when output is dropped. The latest {{ExecLimits.MaxCompletedBackgroundProcesses}}
+          completed processes remain available until replaced by newer results or cleared.
           `wait=N` (1-{{ExecLimits.MaxResponseHoldSeconds}} s) holds the response until the process exits or N seconds pass, so you poll
           far less - just call again with the new offsets while `running` is true.
         - `POST /api/exec/{id}/stdin` - body = text sent to the process stdin
