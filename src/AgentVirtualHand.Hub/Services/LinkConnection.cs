@@ -51,7 +51,15 @@ public sealed class LinkConnection : IAsyncDisposable
     public string BaseUrl => $"http://127.0.0.1:{Port}";
 
     public event Action<string, string>? Audit;
+
+    /// <summary>Etap parowania do pokazania w oknie - samo parowanie potrafi trwac do minuty.</summary>
+    public event Action<string>? Progress;
     public event Action? Changed;
+
+    public static TimeSpan PairingTimeout { get; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Pierwszy etap parowania - okno pokazuje go od razu, zanim dotrze Progress.</summary>
+    public const string FirstPairingPhase = "Contacting the other machine";
 
     public void Rename(string name)
     {
@@ -63,9 +71,11 @@ public sealed class LinkConnection : IAsyncDisposable
     /// Podnosi połączenie. Kod zaproszenia potrzebny jest wyłącznie za pierwszym razem -
     /// potem sparowanie leży w katalogu tego połączenia.
     /// </summary>
-    public async Task StartAsync(string? invitationCode = null)
+    public async Task StartAsync(string? invitationCode = null, CancellationToken cancellationToken = default)
     {
         if (_app is not null) return;
+
+        Progress?.Invoke(FirstPairingPhase);
 
         Directory.CreateDirectory(Entry.StoreRoot);
 
@@ -80,9 +90,22 @@ public sealed class LinkConnection : IAsyncDisposable
         // Nazwa trafia na liste maszyn po stronie hosta, wiec wlasciciel widzi, kto sie dobija.
         var request = new JoinRequest { DisplayName = $"{Environment.MachineName} (hub)" };
 
-        var link = invitationCode is { Length: > 0 }
-            ? await TailcatLink.JoinAsync(AppName, invitationCode, request, options).ConfigureAwait(false)
-            : await TailcatLink.JoinAsync(AppName, options: options).ConfigureAwait(false);
+        // Caly etap parowania (dolaczenie + potwierdzenie) miesci sie w jednym limicie i da sie go przerwac.
+        using var pairing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        pairing.CancelAfter(PairingTimeout);
+
+        ILink link;
+        try
+        {
+            link = invitationCode is { Length: > 0 }
+                ? await TailcatLink.JoinAsync(AppName, invitationCode, request, options, pairing.Token).ConfigureAwait(false)
+                : await TailcatLink.JoinAsync(AppName, options: options, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw PairingTimedOut();
+        }
 
         link.Connected += () =>
         {
@@ -101,7 +124,8 @@ public sealed class LinkConnection : IAsyncDisposable
         // zameldowalaby "gotowe" dla polaczenia, ktore druga strona wlasnie odrzucila.
         if (invitationCode is { Length: > 0 })
         {
-            using var pairing = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            Progress?.Invoke("Waiting for the other machine to confirm");
+
             try
             {
                 await link.WaitUntilConnectedAsync(pairing.Token).ConfigureAwait(false);
@@ -110,16 +134,26 @@ public sealed class LinkConnection : IAsyncDisposable
             {
                 await link.DisposeAsync().ConfigureAwait(false);
                 _link = null;
-                throw new TimeoutException(
-                    "The other machine did not confirm pairing. The code may have expired or the host is already paired with another machine - ask for a new code.");
+                cancellationToken.ThrowIfCancellationRequested();
+                throw PairingTimedOut();
             }
         }
 
+        Progress?.Invoke("Starting the local endpoint");
         await StartLocalServerAsync().ConfigureAwait(false);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            await StopAsync().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
         Audit?.Invoke("link", $"{Entry.Name}: ready on {BaseUrl}");
         Changed?.Invoke();
     }
+
+    private static TimeoutException PairingTimedOut() => new(
+        "The other machine did not confirm pairing. The code may have expired or the host is already paired with another machine - ask for a new code.");
 
     public async Task StopAsync()
     {
