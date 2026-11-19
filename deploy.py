@@ -332,6 +332,8 @@ def main() -> int:
         ftp.login(creds["user"], creds["password"])
         ftp.set_pasv(True)
         stale: list[str] = []
+        # Pierwszy deploy: bez katalogu /avh podkatalogi nie powstana (mkd nie tworzy rodzicow).
+        ensure_dir(ftp, FTP_DIR)
 
         if send_builds:
             upload_downloads(ftp, stale)
