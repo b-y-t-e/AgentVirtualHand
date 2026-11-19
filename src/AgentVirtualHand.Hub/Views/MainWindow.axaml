@@ -5,78 +5,229 @@
         x:DataType="vm:HubViewModel"
         Icon="/Assets/avh-hub.ico"
         Title="AVH Hub"
-        Width="760" Height="660"
-        MinWidth="660" MinHeight="520"
+        Width="860" Height="720"
+        MinWidth="700" MinHeight="520"
         Background="{DynamicResource Bg}"
         FontFamily="Cascadia Mono, Consolas, monospace"
         FontSize="13">
 
-  <Panel>
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
+  <Window.Styles>
+    <!--
+      Lista jest gesta: jeden wiersz = jedna linia. Akcent pojawia sie tylko na wierszu pod
+      kursorem (Copy prompt), zeby przy kilkudziesieciu maszynach nie bylo sciany niebieskich przyciskow.
+    -->
+    <Style Selector="Border.row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="12,0,6,0" />
+      <Setter Property="MinHeight" Value="40" />
+    </Style>
+    <Style Selector="Border.row:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Raised}" />
+    </Style>
+    <Style Selector="Border.row:pointerover Button.copy">
+      <Setter Property="Background" Value="{DynamicResource Accent}" />
+      <Setter Property="Foreground" Value="#07101E" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border.row:pointerover Button.copy:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#6BA0FF" />
+      <Setter Property="TextBlock.Foreground" Value="#07101E" />
+    </Style>
+    <Style Selector="Button.copy, Button.quiet.rowact">
+      <Setter Property="Height" Value="28" />
+    </Style>
 
-      <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Height="44" Margin="24,0">
+    <!-- Filtr stanu: segmenty bez ramki, wybrany ma uniesione tlo -->
+    <Style Selector="Button.seg">
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+      <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.seg.on">
+      <Setter Property="Background" Value="#1A2029" />
+      <Setter Property="Foreground" Value="{DynamicResource Text}" />
+    </Style>
+    <Style Selector="Button.seg.on:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1F2631" />
+    </Style>
+
+    <!-- Cienki pasek postepu na dolnej krawedzi panelu parowania -->
+    <Style Selector="ProgressBar.pairing">
+      <Setter Property="Height" Value="2" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Warn}" />
+      <Setter Property="Background" Value="{DynamicResource Line}" />
+    </Style>
+
+    <!-- Krzyzyk w polu wyszukiwania -->
+    <Style Selector="Button.clear">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+  </Window.Styles>
+
+  <Panel>
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" IsVisible="{Binding Lock.IsUnlocked}">
+
+      <!-- Pasek: nazwa, ile zyje, blokada -->
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,16,Auto,*,Auto" Height="44" Margin="24,0">
         <TextBlock Grid.Column="0" Text="avh hub" FontSize="12.5" FontWeight="SemiBold"
                    Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12"
-                    HorizontalAlignment="Right" Margin="0,0,16,0" VerticalAlignment="Center">
+        <TextBlock Grid.Column="2" Classes="k" FontSize="12" VerticalAlignment="Center"
+                   Text="{Binding ConnectionsSummary}" />
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
           <TextBlock Text="{Binding Lock.LockCountdownText}" IsVisible="{Binding Lock.ShowLockCountdown}"
                      FontSize="12" Foreground="{Binding Lock.LockCountdownAccent}" VerticalAlignment="Center" />
           <Button Classes="chip" Content="{Binding Lock.AutoLockText}"
                   Foreground="{Binding Lock.AutoLockAccent}" Click="OnToggleAutoLock" />
         </StackPanel>
-        <TextBlock Grid.Column="2" Classes="k" FontSize="12" VerticalAlignment="Center"
-                   Text="{Binding ConnectionsSummary}" />
       </Grid>
       <Border Grid.Row="0" Classes="sep" VerticalAlignment="Bottom" />
 
-      <!-- Dodanie maszyny: nazwa jest dla Ciebie, kod pochodzi z jej okna -->
-      <Grid Grid.Row="1" Margin="24,20,24,18" ColumnDefinitions="170,16,*,16,Auto">
-        <StackPanel Grid.Column="0" Spacing="6">
-          <TextBlock Classes="k" Text="name" />
-          <TextBox Text="{Binding NewName}" Watermark="labsvcn" />
-        </StackPanel>
-        <StackPanel Grid.Column="2" Spacing="6">
-          <TextBlock Classes="k" Text="invite code from that machine's window" />
-          <TextBox Text="{Binding NewCode}" Watermark="tc..." />
-        </StackPanel>
-        <Button Grid.Column="4" Classes="primary" Content="Add computer"
-                VerticalAlignment="Bottom" Click="OnAdd" />
-      </Grid>
-      <Border Grid.Row="1" Classes="sep" VerticalAlignment="Bottom" />
+      <!-- Narzedzia listy: szukaj, filtr stanu, dodaj -->
+      <Grid Grid.Row="1" Margin="24,16,24,0" IsVisible="{Binding HasConnections}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="100*" MinWidth="160" MaxWidth="340" />
+          <ColumnDefinition Width="*" MinWidth="16" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="16" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Panel Grid.Column="0">
+          <TextBox Name="SearchBox" Text="{Binding Query}" PlaceholderText="Search name or address   Ctrl+F"
+                   Padding="10,7,34,7" KeyDown="OnSearchKeyDown" />
+          <Button Classes="clear" Content="×" HorizontalAlignment="Right" Margin="0,0,4,0"
+                  VerticalAlignment="Center" IsVisible="{Binding HasQuery}" Click="OnClearSearch"
+                  ToolTip.Tip="Clear search (Esc)" />
+        </Panel>
 
-      <Grid Grid.Row="2" RowDefinitions="Auto,*" Margin="24,18,24,0">
-        <TextBlock Grid.Row="0" Classes="k" Text="computers" Margin="0,0,0,12" />
-
-        <TextBlock Grid.Row="1" Classes="ui" VerticalAlignment="Top" IsVisible="{Binding HasNoConnections}"
-                   Text="No computers yet. On the machine you want to control, start the link and paste its invite code here. Each computer gets its own address and token, so a prompt made for one does not reach the others." />
-
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasConnections}" Padding="0,0,12,0">
-          <ItemsControl ItemsSource="{Binding Connections}">
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+          <ItemsControl ItemsSource="{Binding Filters}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:ConnectionRow">
-                <!-- List row, not a card: the vertical bar on the left edge carries the status -->
-                <Grid ColumnDefinitions="2,18,*" Margin="0,0,0,2">
-                  <Border Grid.Column="0" Background="{Binding StatusAccent}" CornerRadius="1"
-                          Margin="0,10,0,10" />
+              <DataTemplate x:DataType="vm:FilterOption">
+                <Button Classes="seg" Classes.on="{Binding IsSelected}" Content="{Binding Label}" Click="OnFilter" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
 
-                  <Grid Grid.Column="2" RowDefinitions="Auto,6,Auto" Margin="0,14,0,14">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
-                      <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"
-                                 Foreground="{DynamicResource Text}" VerticalAlignment="Center" />
-                      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12"
+        <Button Grid.Column="4" Content="{Binding AddToggleText}" Click="OnToggleAdd"
+                IsEnabled="{Binding Pairing.IsIdle}"
+                ToolTip.Tip="Ctrl+N" />
+      </Grid>
+
+      <!-- Dodanie maszyny: nazwa jest dla Ciebie, kod pochodzi z jej okna -->
+      <Border Grid.Row="2" Margin="24,16,24,0" CornerRadius="3" ClipToBounds="True"
+              Background="{DynamicResource Raised}" BorderBrush="{DynamicResource Line}" BorderThickness="1"
+              IsVisible="{Binding ShowAddPanel}">
+        <Grid RowDefinitions="Auto,Auto,Auto">
+          <Grid Grid.Row="0" Margin="16,14,16,16" ColumnDefinitions="170,16,*,16,Auto">
+            <StackPanel Grid.Column="0" Spacing="6">
+              <TextBlock Classes="k" Text="name" />
+              <TextBox Name="NewNameBox" Text="{Binding NewName}" PlaceholderText="labsvcn"
+                       IsEnabled="{Binding Pairing.IsIdle}" KeyDown="OnAddKeyDown" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="6">
+              <TextBlock Classes="k" Text="invite code from that machine's window" />
+              <TextBox Text="{Binding NewCode}" PlaceholderText="tc..."
+                       IsEnabled="{Binding Pairing.IsIdle}" KeyDown="OnAddKeyDown" />
+            </StackPanel>
+            <Button Grid.Column="4" Classes="primary" Content="Pair" VerticalAlignment="Bottom"
+                    IsVisible="{Binding Pairing.IsIdle}" Click="OnAdd" />
+            <Button Grid.Column="4" Content="Cancel pairing" VerticalAlignment="Bottom"
+                    IsVisible="{Binding Pairing.IsActive}" Click="OnCancelPairing" />
+          </Grid>
+
+          <!--
+            Parowanie trwa do minuty: pasek postepu sam jest linia oddzielajaca pola od stanu,
+            a pod nim etap i licznik - widac, ze cos sie dzieje.
+          -->
+          <ProgressBar Grid.Row="1" Classes="pairing" IsIndeterminate="True" IsVisible="{Binding Pairing.IsActive}" />
+          <Grid Grid.Row="2" Margin="16,12,16,14" ColumnDefinitions="Auto,12,*" IsVisible="{Binding Pairing.IsActive}">
+            <TextBlock Grid.Column="0" Text="{Binding Pairing.Title}" FontSize="12.5" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Warn}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="{Binding Pairing.Text}" FontSize="12"
+                       Foreground="{DynamicResource Soft}" VerticalAlignment="Center" />
+          </Grid>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Row="3" Margin="12,8,12,0">
+        <StackPanel Margin="12,10,12,0" Spacing="10" IsVisible="{Binding HasNoConnections}">
+          <TextBlock Classes="ui"
+                     Text="No computers yet. On the machine you want to control, start the link and paste its invite code above. Each computer gets its own address and token, so a prompt made for one does not reach the others." />
+        </StackPanel>
+
+        <StackPanel Margin="12,14,12,0" Spacing="12" IsVisible="{Binding HasNoMatches}">
+          <TextBlock Classes="ui" Text="{Binding NoMatchesText}" />
+          <Button Content="Show all computers" HorizontalAlignment="Left" Click="OnClearFilters" />
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasVisible}" Padding="0,0,12,8">
+          <ItemsControl ItemsSource="{Binding List.Items}" Grid.IsSharedSizeScope="True">
+            <ItemsControl.DataTemplates>
+              <!-- Naglowek grupy: osobny element listy nad wierszami danego stanu -->
+              <DataTemplate DataType="vm:GroupHeader">
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="12,14,0,4">
+                  <TextBlock Classes="k" FontSize="11.5" Foreground="{DynamicResource Soft}"
+                             Text="{Binding Title}" />
+                  <TextBlock Classes="k" FontSize="11.5" Text="{Binding Count}" />
+                </StackPanel>
+              </DataTemplate>
+              <DataTemplate DataType="vm:ConnectionRow">
+                <StackPanel>
+                  <Border Classes="row">
+                    <Grid VerticalAlignment="Center">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="addr" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="status" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="act" />
+                      </Grid.ColumnDefinitions>
+
+                      <Ellipse Grid.Column="0" Width="8" Height="8" Fill="{Binding StatusAccent}"
+                               VerticalAlignment="Center" />
+
+                      <TextBlock Grid.Column="2" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                 Foreground="{Binding NameBrush}" VerticalAlignment="Center"
+                                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+
+                      <SelectableTextBlock Grid.Column="4" Text="{Binding AddressText}" FontSize="12"
+                                           Foreground="{DynamicResource Link}" VerticalAlignment="Center"
+                                           IsVisible="{Binding IsOpen}" />
+
+                      <TextBlock Grid.Column="6" Text="{Binding StatusText}" FontSize="12"
                                  Foreground="{Binding StatusAccent}" VerticalAlignment="Center" />
-                    </Grid>
 
-                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
-                      <SelectableTextBlock Grid.Column="0" Text="{Binding AddressText}" FontSize="12"
-                                           Foreground="{DynamicResource Link}" VerticalAlignment="Center" />
-                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Classes="primary" Content="Copy prompt" Click="OnCopyPrompt"
-                                IsEnabled="{Binding IsOpen}" />
-                        <Button Classes="quiet" Content="{Binding ToggleText}" Click="OnToggle"
-                                IsEnabled="{Binding NotBusy}" />
+                      <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="4"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Classes="copy" Content="Copy prompt" Click="OnCopyPrompt"
+                                IsVisible="{Binding IsOpen}" />
+                        <Button Classes="quiet rowact" Content="{Binding ToggleText}" Click="OnToggle"
+                                IsEnabled="{Binding NotBusy}" MinWidth="72" />
                         <!-- Rzadkie akcje pod menu: zajmowaly tyle samo miejsca co te uzywane stale -->
-                        <Button Classes="quiet" Content="⋯" Width="34" ToolTip.Tip="More">
+                        <Button Classes="quiet rowact" Content="⋯" Width="32" ToolTip.Tip="More"
+                                IsEnabled="{Binding NotBusy}">
                           <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
                               <MenuItem Header="New token" Click="OnRotateToken"
@@ -87,20 +238,19 @@
                         </Button>
                       </StackPanel>
                     </Grid>
-                  </Grid>
-
-                  <Border Grid.Column="2" Classes="sep" VerticalAlignment="Bottom" />
-                </Grid>
+                  </Border>
+                </StackPanel>
               </DataTemplate>
-            </ItemsControl.ItemTemplate>
+            </ItemsControl.DataTemplates>
           </ItemsControl>
         </ScrollViewer>
       </Grid>
 
-      <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="24,18,24,0" Height="170">
-        <TextBlock Grid.Row="0" Classes="k" Text="log" Margin="0,0,0,10" />
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
-          <ItemsControl ItemsSource="{Binding Logs}">
+      <!-- Log: zwiniety domyslnie, filtrowany tym samym wyszukiwaniem co lista -->
+      <Border Grid.Row="4" Height="200" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
+              IsVisible="{Binding IsLogOpen}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,12,24,8">
+          <ItemsControl ItemsSource="{Binding VisibleLogs}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:LogEntry">
                 <Grid ColumnDefinitions="Auto,14,44,14,*" Margin="0,0,0,6">
@@ -115,12 +265,16 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </ScrollViewer>
-      </Grid>
+      </Border>
 
-      <Border Grid.Row="4" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0"
-              Padding="24,14" Margin="0,18,0,0">
-        <TextBlock Classes="ui" FontSize="12.5" MaxWidth="660" HorizontalAlignment="Left"
-                   Text="{Binding Hint}" />
+      <Border Grid.Row="5" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="24,10">
+        <Grid ColumnDefinitions="*,16,Auto">
+          <TextBlock Grid.Column="0" Classes="ui" FontSize="12.5" MaxWidth="660" VerticalAlignment="Center"
+                     TextWrapping="Wrap"
+                     Text="{Binding Hint}" ToolTip.Tip="{Binding Hint}" />
+          <Button Grid.Column="2" Classes="chip" Content="{Binding LogToggleText}"
+                  Foreground="{Binding LogToggleBrush}" Click="OnToggleLog" ToolTip.Tip="Ctrl+L" />
+        </Grid>
       </Border>
     </Grid>
 

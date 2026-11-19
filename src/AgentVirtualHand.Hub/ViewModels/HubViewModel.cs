@@ -26,10 +26,14 @@ public sealed class ConnectionRow : INotifyPropertyChanged
     private readonly LinkConnection _connection;
     private bool _busy;
 
-    public ConnectionRow(LinkConnection connection)
+    public ConnectionRow(LinkConnection connection, Action onChanged)
     {
         _connection = connection;
-        _connection.Changed += () => Dispatcher.UIThread.Post(RefreshAll);
+        _connection.Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            RefreshAll();
+            onChanged();
+        });
     }
 
     public LinkConnection Connection => _connection;
@@ -39,22 +43,58 @@ public sealed class ConnectionRow : INotifyPropertyChanged
 
     public string AddressText => _connection.IsOpen ? _connection.BaseUrl : "off";
 
-    public string StatusText => (_connection.IsOpen, _connection.IsConnected) switch
+    private bool _pairing;
+
+    /// <summary>Pierwsze parowanie w toku - maszyna jest już na liście, ale jeszcze nie ma linku.</summary>
+    public bool IsPairing
     {
-        (false, _) => "off",
-        (true, false) => "connecting",
-        (true, true) => "connected",
+        get => _pairing;
+        set
+        {
+            if (_pairing == value) return;
+            _pairing = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(NotBusy));
+            RefreshAll();
+        }
+    }
+
+    /// <summary>Jeden stan wiersza - z niego wynika etykieta, kolor i miejsce na liście.</summary>
+    public RowStatus Status => _pairing ? RowStatus.Pairing : (_connection.IsOpen, _connection.IsConnected) switch
+    {
+        (false, _) => RowStatus.Off,
+        (true, false) => RowStatus.Connecting,
+        (true, true) => RowStatus.Connected,
     };
 
-    public IBrush StatusAccent => Brush.Parse((_connection.IsOpen, _connection.IsConnected) switch
+    public string StatusText => Status.ToString().ToLowerInvariant();
+
+    public IBrush StatusAccent => Brush.Parse(Status switch
     {
-        (false, _) => "#5C6474",
-        (true, false) => "#FFB454",
-        (true, true) => "#63D19B",
+        RowStatus.Connected => "#63D19B",
+        RowStatus.Off => "#5C6474",
+        _ => "#FFB454",
     });
 
     public bool IsOpen => _connection.IsOpen;
-    public bool IsConnected => _connection.IsConnected;
+    public bool IsConnected => Status == RowStatus.Connected;
+
+    /// <summary>Grupa na liście - parowanie liczy się jako łączenie.</summary>
+    public StatusGroup Group => Status switch
+    {
+        RowStatus.Connected => StatusGroup.Connected,
+        RowStatus.Off => StatusGroup.Off,
+        _ => StatusGroup.Connecting,
+    };
+
+    /// <summary>Wyłączona maszyna ma przygaszoną nazwę, żeby żywe wiersze dało się wyłowić wzrokiem.</summary>
+    public IBrush NameBrush => Brush.Parse(_connection.IsOpen || _pairing ? "#E6E9EF" : "#8B95A7");
+
+    public bool Matches(string query) =>
+        query.Length == 0
+        || Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || (IsOpen && AddressText.Contains(query, StringComparison.OrdinalIgnoreCase));
+
     public string ToggleText => _connection.IsOpen ? "Turn off" : "Turn on";
 
     public bool Busy
@@ -63,7 +103,7 @@ public sealed class ConnectionRow : INotifyPropertyChanged
         private set { _busy = value; OnPropertyChanged(); OnPropertyChanged(nameof(NotBusy)); }
     }
 
-    public bool NotBusy => !_busy;
+    public bool NotBusy => !_busy && !_pairing;
 
     public async Task ToggleAsync()
     {
@@ -88,6 +128,7 @@ public sealed class ConnectionRow : INotifyPropertyChanged
         OnPropertyChanged(nameof(StatusAccent));
         OnPropertyChanged(nameof(IsOpen));
         OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(NameBrush));
         OnPropertyChanged(nameof(ToggleText));
     }
 
@@ -97,42 +138,165 @@ public sealed class ConnectionRow : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
+public enum RowStatus { Connected, Connecting, Pairing, Off }
+
 public sealed class HubViewModel : INotifyPropertyChanged
 {
+    private const int MaxLogEntries = 300;
+
     private readonly DispatcherTimer _timer;
 
     private string _newCode = "";
     private string _newName = "";
     private string _hint = "Paste the invite code from the machine you want to control.";
+    private string _query = "";
+    private StatusGroup? _filter;
+    private bool _isAddOpen;
+    private bool _isLogOpen;
+    private bool _logAlert;
 
-    public HubViewModel()
+    public HubViewModel() : this(TimeProvider.System) { }
+
+    public HubViewModel(TimeProvider time)
     {
+        Pairing = new PairingProgress(time, LinkConnection.PairingTimeout, LinkConnection.FirstPairingPhase,
+            action => Dispatcher.UIThread.Post(action));
+        Pairing.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(PairingProgress.IsActive)) OnPropertyChanged(nameof(ShowAddPanel));
+        };
         foreach (var entry in ConnectionStore.Load()) Add(entry, autoStart: entry.Enabled);
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _timer.Tick += (_, _) =>
         {
             foreach (var row in Connections) row.RefreshAll();
-            OnPropertyChanged(nameof(ConnectionsSummary));
+            ApplyView();
         };
         _timer.Start();
 
+        ApplyView();
         Log("app", $"AVH Hub - {Connections.Count} saved connections");
     }
 
     /// <summary>Blokada okna hasłem - hub trzyma tokeny do cudzych maszyn, więc nie może stać otworem.</summary>
     public LockViewModel Lock { get; } = new(HubPaths.Root);
 
+    /// <summary>Wszystkie maszyny w kolejności zapisu - to idzie na dysk.</summary>
     public ObservableCollection<ConnectionRow> Connections { get; } = [];
+
+    /// <summary>To, co widać: po filtrze i wyszukiwaniu, połączone na górze, z nagłówkami grup.</summary>
+    public ConnectionListView List { get; } = new();
+
+    /// <summary>Przyciski filtra stanu z licznościami.</summary>
+    public IReadOnlyList<FilterOption> Filters { get; } = FilterOption.All();
+
+    /// <summary>Parowanie w toku: pola zablokowane, pasek postępu i licznik w panelu dodawania.</summary>
+    public PairingProgress Pairing { get; }
+
     public ObservableCollection<LogEntry> Logs { get; } = [];
+
+    /// <summary>Log zawężony tym samym wyszukiwaniem co lista - wpisy zaczynają się od nazwy maszyny.</summary>
+    public ObservableCollection<LogEntry> VisibleLogs { get; } = [];
 
     /// <summary>Krótkie podsumowanie w pasku: ile maszyn faktycznie odpowiada.</summary>
     public string ConnectionsSummary => Connections.Count == 0
         ? "no computers"
-        : $"{Connections.Count(row => row.IsConnected)} of {Connections.Count} connected";
+        : $"{ConnectedCount} of {Connections.Count} connected";
+
+    public int ConnectedCount => Connections.Count(row => row.IsConnected);
 
     public bool HasConnections => Connections.Count > 0;
     public bool HasNoConnections => Connections.Count == 0;
+
+    /// <summary>Są maszyny, ale filtr albo wyszukiwanie nic nie zostawiły.</summary>
+    public bool HasNoMatches => Connections.Count > 0 && !List.HasRows;
+    public bool HasVisible => List.HasRows;
+
+    public string NoMatchesText => _query.Length > 0
+        ? $"No computers match \"{_query}\"{FilterSuffix}."
+        : $"No computers are {FilterName} right now.";
+
+    private string FilterName => _filter?.ToString().ToLowerInvariant() ?? "listed";
+    private string FilterSuffix => _filter is null ? "" : $" among {FilterName}";
+
+    public string Query
+    {
+        get => _query;
+        set
+        {
+            value ??= "";
+            if (_query == value) return;
+            _query = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasQuery));
+            ApplyView();
+            RebuildLogs();
+        }
+    }
+
+    public bool HasQuery => _query.Length > 0;
+
+    /// <summary>Wybrana grupa stanu; null to "All".</summary>
+    public StatusGroup? Filter
+    {
+        get => _filter;
+        set
+        {
+            if (_filter == value) return;
+            _filter = value;
+            OnPropertyChanged();
+            ApplyView();
+        }
+    }
+
+    /// <summary>Formularz dodawania jest schowany, gdy lista już coś ma - wcześniej zabierał miejsce na stałe.</summary>
+    public bool IsAddOpen
+    {
+        get => _isAddOpen;
+        set
+        {
+            if (_isAddOpen == value) return;
+            _isAddOpen = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ShowAddPanel));
+            OnPropertyChanged(nameof(AddToggleText));
+        }
+    }
+
+    public bool ShowAddPanel => _isAddOpen || HasNoConnections || Pairing.IsActive;
+
+    public string AddToggleText => _isAddOpen ? "Cancel" : "Add computer";
+
+    public bool IsLogOpen
+    {
+        get => _isLogOpen;
+        set
+        {
+            if (_isLogOpen == value) return;
+            _isLogOpen = value;
+            if (value) LogAlert = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LogToggleText));
+        }
+    }
+
+    public string LogToggleText => $"{(_isLogOpen ? "Hide log" : "Log")}  {VisibleLogs.Count}";
+
+    /// <summary>Odmowa przyszła przy zwiniętym logu - przycisk logu świeci na czerwono, aż ktoś go otworzy.</summary>
+    public bool LogAlert
+    {
+        get => _logAlert;
+        private set
+        {
+            if (_logAlert == value) return;
+            _logAlert = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LogToggleBrush));
+        }
+    }
+
+    public IBrush LogToggleBrush => Brush.Parse(_logAlert ? "#FF7B72" : "#8B95A7");
 
     public string NewCode
     {
@@ -155,6 +319,8 @@ public sealed class HubViewModel : INotifyPropertyChanged
     /// <summary>Dodaje maszynę na podstawie jednorazowego kodu zaproszenia z jej okna.</summary>
     public async Task AddAsync()
     {
+        if (Pairing.IsActive) return;
+
         var code = NewCode.Trim();
         if (code.Length == 0)
         {
@@ -165,42 +331,84 @@ public sealed class HubViewModel : INotifyPropertyChanged
         var name = NewName.Trim();
         if (name.Length == 0) name = $"machine {Connections.Count + 1}";
 
-        var entry = new ConnectionEntry(Guid.NewGuid().ToString("N")[..12], name, 0, Enabled: true, Token: "");
-        var row = Add(entry, autoStart: false);
-
-        Hint = $"Parowanie z \"{name}\"...";
+        using var cts = new CancellationTokenSource();
+        var row = BeginPairing(name, cts);
         try
         {
-            await row.Connection.StartAsync(code);
-            NewCode = "";
-            NewName = "";
-            Hint = $"Paired with \"{name}\". Copy the prompt to give the model access to this one machine.";
+            await row.Connection.StartAsync(code, cts.Token);
+            CompletePairing(name);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            await DiscardRowAsync(row);
+            Hint = $"Pairing with \"{name}\" cancelled. The invite code may already be used - ask for a new one if it fails again.";
+            Log("note", $"{name}: pairing cancelled");
         }
         catch (Exception ex)
         {
-            Connections.Remove(row);
-            ConnectionStore.Forget(entry);
+            await DiscardRowAsync(row);
             Hint = $"Pairing failed: {ex.Message}";
             Log("deny", $"{name}: {ex.Message}");
         }
+        finally
+        {
+            EndPairing(row);
+        }
 
+        ApplyView();
         Save();
+    }
+
+    /// <summary>Wiersz "pairing" od razu na liście, licznik i etap w panelu.</summary>
+    private ConnectionRow BeginPairing(string name, CancellationTokenSource cts)
+    {
+        var entry = new ConnectionEntry(Guid.NewGuid().ToString("N")[..12], name, 0, Enabled: true, Token: "");
+        var row = Add(entry, autoStart: false);
+        row.IsPairing = true;
+        ApplyView();
+
+        Pairing.Start(name, cts);
+        row.Connection.Progress += OnPairingProgress;
+        Hint = $"Pairing with \"{name}\"...";
+        return row;
+    }
+
+    private void CompletePairing(string name)
+    {
+        NewCode = "";
+        NewName = "";
+        IsAddOpen = false;
+        Hint = $"Paired with \"{name}\". Copy the prompt to give the model access to this one machine.";
+    }
+
+    private void EndPairing(ConnectionRow row)
+    {
+        row.Connection.Progress -= OnPairingProgress;
+        row.IsPairing = false;
+        Pairing.Stop();
+    }
+
+    private void OnPairingProgress(string phase) => Dispatcher.UIThread.Post(() => Pairing.ReportPhase(phase));
+
+    /// <summary>Usuwa maszynę z listy razem z jej sparowaniem.</summary>
+    private async Task DiscardRowAsync(ConnectionRow row)
+    {
+        await row.Connection.StopAsync();
+        Connections.Remove(row);
+        ConnectionStore.Forget(row.Entry);
     }
 
     public async Task ToggleAsync(ConnectionRow row)
     {
         await row.ToggleAsync();
+        ApplyView();
         Save();
     }
 
     public async Task RemoveAsync(ConnectionRow row)
     {
-        await row.Connection.StopAsync();
-        Connections.Remove(row);
-        ConnectionStore.Forget(row.Entry);
-        OnPropertyChanged(nameof(HasConnections));
-        OnPropertyChanged(nameof(HasNoConnections));
-        OnPropertyChanged(nameof(ConnectionsSummary));
+        await DiscardRowAsync(row);
+        ApplyView();
 
         Log("link", $"{row.Name}: removed along with its pairing");
         Hint = $"Removed \"{row.Name}\". Adding it again needs a new invite code.";
@@ -219,7 +427,13 @@ public sealed class HubViewModel : INotifyPropertyChanged
     public void NotePromptCopied(ConnectionRow row)
     {
         Hint = $"Prompt for \"{row.Name}\" copied - it grants access to this machine only.";
-        Log("pair", $"{row.Name}: skopiowano prompt");
+        Log("pair", $"{row.Name}: prompt copied");
+    }
+
+    public void ClearFilters()
+    {
+        Query = "";
+        Filter = null;
     }
 
     /// <summary>Zamknięcie okna musi zamknąć wszystkie porty i linki.</summary>
@@ -237,11 +451,8 @@ public sealed class HubViewModel : INotifyPropertyChanged
         var connection = new LinkConnection(entry);
         connection.Audit += (kind, message) => Log(kind, message);
 
-        var row = new ConnectionRow(connection);
+        var row = new ConnectionRow(connection, ApplyView);
         Connections.Add(row);
-        OnPropertyChanged(nameof(HasConnections));
-        OnPropertyChanged(nameof(HasNoConnections));
-        OnPropertyChanged(nameof(ConnectionsSummary));
 
         if (autoStart)
         {
@@ -256,6 +467,35 @@ public sealed class HubViewModel : INotifyPropertyChanged
         return row;
     }
 
+    /// <summary>Przelicza widoczną listę i liczniki filtra.</summary>
+    private void ApplyView()
+    {
+        List.Apply(Connections, _query, _filter);
+        foreach (var option in Filters) option.Update(Connections, _filter);
+        NotifyCounts();
+    }
+
+    private void NotifyCounts()
+    {
+        OnPropertyChanged(nameof(HasConnections));
+        OnPropertyChanged(nameof(HasNoConnections));
+        OnPropertyChanged(nameof(HasNoMatches));
+        OnPropertyChanged(nameof(HasVisible));
+        OnPropertyChanged(nameof(NoMatchesText));
+        OnPropertyChanged(nameof(ConnectionsSummary));
+        OnPropertyChanged(nameof(ShowAddPanel));
+    }
+
+    private bool LogMatches(LogEntry entry) =>
+        _query.Length == 0 || entry.Message.Contains(_query, StringComparison.OrdinalIgnoreCase);
+
+    private void RebuildLogs()
+    {
+        VisibleLogs.Clear();
+        foreach (var entry in Logs.Where(LogMatches)) VisibleLogs.Add(entry);
+        OnPropertyChanged(nameof(LogToggleText));
+    }
+
     private void Save() => ConnectionStore.Save(Connections.Select(r =>
         r.Connection.Entry with { Enabled = r.Connection.IsOpen }));
 
@@ -263,8 +503,19 @@ public sealed class HubViewModel : INotifyPropertyChanged
     {
         void Add()
         {
-            Logs.Insert(0, new LogEntry(DateTime.Now.ToString("HH:mm:ss"), kind, message));
-            while (Logs.Count > 300) Logs.RemoveAt(Logs.Count - 1);
+            var entry = new LogEntry(DateTime.Now.ToString("HH:mm:ss"), kind, message);
+            Logs.Insert(0, entry);
+            if (Logs.Count > MaxLogEntries)
+            {
+                var dropped = Logs[^1];
+                Logs.RemoveAt(Logs.Count - 1);
+                VisibleLogs.Remove(dropped);
+            }
+
+            if (LogMatches(entry)) VisibleLogs.Insert(0, entry);
+
+            if (kind == "deny" && !_isLogOpen) LogAlert = true;
+            OnPropertyChanged(nameof(LogToggleText));
         }
 
         if (Dispatcher.UIThread.CheckAccess()) Add();
