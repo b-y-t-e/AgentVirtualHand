@@ -40,6 +40,12 @@
     <CheckBox Content="Start with Windows" IsChecked="{Binding AutostartEnabled, Mode=TwoWay}"
               IsVisible="{Binding CanAutostart}" HorizontalAlignment="Center" />
 
+    <!-- Nowa wersja pobrana w tle: restart odcina obecnych, wiec tylko na klikniecie -->
+    <Button Content="{Binding Updates.Text}" IsVisible="{Binding Updates.HasUpdate, FallbackValue=False}"
+            IsEnabled="{Binding Updates.CanRestart}" HorizontalAlignment="Center"
+            Click="OnRestartForUpdate"
+            ToolTip.Tip="Disconnects everyone, installs the new version and opens it again." />
+
     <TextBlock Text="{Binding StartupError}" IsVisible="{Binding HasStartupError}"
                FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Danger}" />
 

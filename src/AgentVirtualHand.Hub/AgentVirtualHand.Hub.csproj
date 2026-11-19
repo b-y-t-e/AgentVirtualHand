@@ -31,6 +31,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
     <PackageReference Include="Tailcat.Link" Version="0.5.10" />
+    <!-- Aktualizacje wersji zainstalowanej z Setup.exe (kanal greysource.eu/avh/updates/hub). -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,5 @@
 using AgentVirtualHand.Hub.ViewModels;
+using AgentVirtualHand.Services;
 using AgentVirtualHand.Hub.Views;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -14,13 +15,17 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var updates = new AppUpdates("hub");
             var viewModel = new HubViewModel();
+            viewModel.AttachUpdates(updates);
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
 
             // Zamknięcie okna musi zamknąć wszystkie lokalne porty - inaczej zostawialibyśmy
             // otwarte wejścia do cudzych maszyn. Czekanie idzie wątkiem roboczym, żeby nie
             // zakleszczyć dyspozytora UI na asynchronicznym zatrzymaniu serwerów.
             desktop.ShutdownRequested += (_, _) => viewModel.ShutdownBlocking();
+
+            updates.Start();
         }
 
         base.OnFrameworkInitializationCompleted();

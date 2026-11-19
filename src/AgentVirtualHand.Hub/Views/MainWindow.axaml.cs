@@ -41,6 +41,11 @@ public partial class MainWindow : Window
 
     private void OnToggleAutoLock(object? sender, RoutedEventArgs e) => Model?.Lock.ToggleAutoLock();
 
+    private async void OnRestartForUpdate(object? sender, RoutedEventArgs e)
+    {
+        if (Model is not null) await Model.RestartForUpdateAsync();
+    }
+
     private void OnLockKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;

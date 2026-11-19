@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using AgentVirtualHand.Hub.Services;
 using Avalonia;
+using Velopack;
 
 namespace AgentVirtualHand.Hub;
 
@@ -9,6 +10,10 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Instalator (Velopack) uruchamia aplikacje z wlasnymi argumentami przy instalacji,
+        // aktualizacji i deinstalacji; poza tym wraca od razu.
+        VelopackApp.Build().Run();
+
         if (args.Contains("--pair"))
             return PairAsync(args).GetAwaiter().GetResult();
 

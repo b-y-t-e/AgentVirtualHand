@@ -1,0 +1,9 @@
+<Project>
+  <!--
+    Jeden numer wersji dla wszystkich aplikacji: version.txt w korzeniu repo.
+    deploy.py podnosi go przy kazdym wydaniu - bez tego zainstalowane aplikacje nie zobacza aktualizacji.
+  -->
+  <PropertyGroup>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)version.txt').Trim())</Version>
+  </PropertyGroup>
+</Project>

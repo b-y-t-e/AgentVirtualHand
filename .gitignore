@@ -26,3 +26,9 @@ avh-error.log
 
 # mTiles workspace state
 .claude/skills/mtiles-workflows/
+
+# FTP deploy secrets - repo is public on GitHub, never commit
+ftp_credentials.json
+# deploy output
+artifacts/
+__pycache__/

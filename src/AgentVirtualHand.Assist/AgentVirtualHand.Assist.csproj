@@ -33,6 +33,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
     <PackageReference Include="Tailcat.Link" Version="0.5.10" />
+    <!-- Aktualizacje wersji zainstalowanej z Setup.exe (kanal greysource.eu/avh/updates/assist). -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,6 +42,9 @@
     <Compile Include="..\AgentVirtualHand\Server\*.cs" Link="Server\%(Filename)%(Extension)" />
     <!-- Jedna kopia na maszyne: assist i host dziela tozsamosc parowania, wiec ten sam muteks. -->
     <Compile Include="..\AgentVirtualHand\Services\SingleInstance.cs" Link="SingleInstance.cs" />
+    <!-- Aktualizacje: ta sama logika co w hubie. -->
+    <Compile Include="..\AgentVirtualHand.Hub\Services\AppUpdates.cs" Link="AppUpdates.cs" />
+    <Compile Include="..\AgentVirtualHand.Hub\ViewModels\UpdatePrompt.cs" Link="UpdatePrompt.cs" />
     <AvaloniaResource Include="..\AgentVirtualHand\Styles\Theme.axaml" Link="Styles\Theme.axaml" />
   </ItemGroup>
 

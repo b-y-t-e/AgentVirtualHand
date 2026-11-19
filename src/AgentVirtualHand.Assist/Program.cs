@@ -1,6 +1,7 @@
 using AgentVirtualHand.Services;
 using AgentVirtualHand.Server;
 using Avalonia;
+using Velopack;
 
 namespace AgentVirtualHand.Assist;
 
@@ -11,6 +12,26 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Instalator (Velopack) uruchamia aplikacje z wlasnymi argumentami przy instalacji,
+        // aktualizacji i deinstalacji; poza tym wraca od razu.
+        var velopack = VelopackApp.Build();
+        if (OperatingSystem.IsWindows())
+        {
+            velopack = velopack.OnBeforeUninstallFastCallback(_ =>
+            {
+                // Deinstalacja nie moze zostawic wpisu autostartu wskazujacego skasowany exe.
+                try
+                {
+                    if (OperatingSystem.IsWindows()) new AssistStartup().SetEnabled(false);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"avh-assist: could not remove the startup entry: {ex.Message}");
+                }
+            });
+        }
+        velopack.Run();
+
         // Assist i zwykly host dziela tozsamosc parowania (ten sam plik stanu), wiec na maszynie
         // moze dzialac tylko jedna kopia - ten sam muteks co host ("avh-host").
         if (!SingleInstance.TryAcquire("avh-host"))

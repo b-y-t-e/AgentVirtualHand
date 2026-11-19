@@ -62,6 +62,11 @@ public partial class AssistWindow : Window
         Environment.Exit(0);
     }
 
+    private async void OnRestartForUpdate(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is AssistViewModel vm) await vm.RestartForUpdateAsync();
+    }
+
     /// <summary>Kopiuje kod do schowka - z przycisku albo z klikniecia w sam kod.</summary>
     private async void OnCopyCode(object? sender, RoutedEventArgs e)
     {

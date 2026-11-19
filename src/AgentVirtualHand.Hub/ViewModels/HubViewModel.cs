@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AgentVirtualHand.Hub.Services;
+using AgentVirtualHand.Services;
 using AgentVirtualHand.ViewModels;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -435,6 +436,27 @@ public sealed class HubViewModel : INotifyPropertyChanged
         Query = "";
         Filter = null;
     }
+
+    /// <summary>Aktualizacje: wersja w pasku i przycisk restartu; null poza oknem aplikacji.</summary>
+    public UpdatePrompt? Updates { get; private set; }
+
+    public void AttachUpdates(IAppUpdates updates)
+    {
+        Updates = new UpdatePrompt(updates);
+        Updates.Ready += version => Log("note", $"Version {version} is ready - restart to update");
+        Updates.Failed += message =>
+        {
+            Hint = $"Update could not be installed: {message}. Close and reopen the hub.";
+            Log("deny", $"update failed: {message}");
+        };
+        OnPropertyChanged(nameof(Updates));
+    }
+
+    /// <summary>
+    /// Zapisuje, które maszyny były włączone (nowa wersja podniesie je sama), zamyka połączenia,
+    /// a potem Velopack podmienia pliki i uruchamia hub od nowa.
+    /// </summary>
+    public Task RestartForUpdateAsync() => Updates?.RestartAsync(ShutdownBlocking) ?? Task.CompletedTask;
 
     /// <summary>Zamknięcie okna musi zamknąć wszystkie porty i linki.</summary>
     public void ShutdownBlocking()

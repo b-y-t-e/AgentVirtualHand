@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVH: remote hands for your AI agent</title>
+  <meta name="description" content="Someone runs AVH Assist and gives you a code. You paste it into AVH Hub, and your AI agent can work on that computer. No IP address, no open port.">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <a class="mark" href="./" aria-label="AVH home">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#141A23"/><g stroke="#5BD39A" stroke-width="4.5" stroke-linecap="round"><path d="M32 32V17M32 32v15M32 32H17M32 32h15"/></g><g fill="#5BD39A"><circle cx="32" cy="32" r="5.5"/><circle cx="32" cy="16" r="4"/><circle cx="32" cy="48" r="4"/><circle cx="16" cy="32" r="4"/><circle cx="48" cy="32" r="4"/></g></svg>
+      <span>avh</span>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#download">Download</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="hero-text">
+        <h1>Remote hands for your AI&nbsp;agent.</h1>
+        <p class="lead">Someone runs <b class="t-assist">Assist</b> and gives you a code. You paste it into <b class="t-hub">Hub</b>, and your agent can run commands and move files on their computer.</p>
+        <p class="lead quiet">No IP address, no open port, no account.</p>
+        <div class="cta">
+          <a class="button hub" href="#hub">Get Hub</a>
+          <a class="button assist" href="#assist">Get Assist</a>
+        </div>
+      </div>
+
+      <!-- The one moment of motion: a code travels from Assist to Hub and the machine turns connected. -->
+      <figure class="scene" id="scene" data-step="3" aria-label="Assist shows a code; Hub pairs with it and the computer shows as connected.">
+        <div class="win assist-win">
+          <div class="win-bar"><span class="glyph assist-glyph" aria-hidden="true"></span>Support</div>
+          <p class="win-label">Support code</p>
+          <p class="code"><span id="code-text">tc7Hq2-kWm9-Xe4p-R8sd</span><span class="caret" aria-hidden="true"></span></p>
+          <p class="win-btn">Copy code</p>
+          <p class="win-count"><span class="dot"></span><span id="assist-count">1 connected</span></p>
+        </div>
+
+        <svg class="path" viewBox="0 0 40 60" aria-hidden="true"><path d="M20 4 V 48 M12 40 L20 50 L28 40"/></svg>
+
+        <div class="win hub-win">
+          <div class="win-bar"><span class="glyph hub-glyph" aria-hidden="true"></span>avh hub</div>
+          <div class="row">
+            <span class="dot" id="hub-dot"></span>
+            <span class="name">mum-laptop</span>
+            <span class="addr" id="hub-addr">127.0.0.1:51734</span>
+            <span class="state" id="hub-state">connected</span>
+            <span class="win-btn small" id="hub-copy">Copy prompt</span>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <section id="how" class="block">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li>
+          <h3>They open Assist</h3>
+          <p>On the computer that needs help. It shows a support code right away, nothing to set up.</p>
+        </li>
+        <li>
+          <h3>They send you the code</h3>
+          <p>By chat, mail or phone. A code works once: after you use it, it is gone.</p>
+        </li>
+        <li>
+          <h3>You paste it into Hub</h3>
+          <p>Hub pairs with that computer and gives you a prompt for your AI agent. The agent works on that one machine.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="download" class="block">
+      <h2>Download</h2>
+      <p class="intro" id="dl-version">Windows, 64-bit.</p>
+
+      <div class="apps">
+        <article class="app app-hub" id="hub">
+          <header>
+            <h3>AVH Hub</h3>
+            <p>For you. Keeps the list of computers you help and makes a prompt for each one.</p>
+          </header>
+          <ul class="files" data-app="hub">
+            <li class="pending">Builds are being prepared. Check back soon.</li>
+          </ul>
+        </article>
+
+        <article class="app app-assist" id="assist">
+          <header>
+            <h3>AVH Assist</h3>
+            <p>For the person you help. One window with a code. Closing it ends access.</p>
+          </header>
+          <ul class="files" data-app="assist">
+            <li class="pending">Builds are being prepared. Check back soon.</li>
+          </ul>
+          <div class="share">
+            <p>Send them a link that opens right here:</p>
+            <div class="share-row">
+              <code id="share-url">greysource.eu/avh/#assist</code>
+              <button type="button" class="copy" id="share-copy">Copy link</button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <p class="note"><b>Setup</b> installs for the current user without admin rights and updates itself; Hub and Assist offer a restart when a new version is ready. <b>Portable</b> runs from the unpacked folder, keep <code>msquic.dll</code> next to the exe, and does not update.</p>
+    </section>
+
+    <section class="block">
+      <h2>What keeps it safe</h2>
+      <dl class="facts">
+        <div><dt>Nothing listens on the network</dt><dd>Both sides connect out through Tailcat.Link. The local API answers on 127.0.0.1 only.</dd></div>
+        <div><dt>Access ends with the window</dt><dd>Closing Assist cuts everyone off and stops every command that was still running.</dd></div>
+        <div><dt>One prompt, one computer</dt><dd>Each machine in Hub gets its own address and token. A prompt made for one cannot reach another.</dd></div>
+        <div><dt>Changes leave a trail</dt><dd>Commands and file changes are written to an audit log on the computer they ran on.</dd></div>
+      </dl>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>AVH by greysource. Built on Tailcat.Link.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

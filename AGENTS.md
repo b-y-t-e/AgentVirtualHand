@@ -31,6 +31,21 @@ python build.py                                  # standalone single-file exes -
 python build.py --only host --clean              # one app; --rid linux-x64 for Linux
 ```
 
+Releases of hub + assist go to https://greysource.eu/avh/ (landing page in `site/`):
+
+```bash
+python deploy.py --build          # bump version.txt, publish, Velopack Setup.exe + portable zip, upload all
+python deploy.py --build --local --no-bump   # build into artifacts/ only, nothing uploaded
+python deploy.py                  # site only;  --preview serves it on http://localhost:8041/avh/
+```
+
+`version.txt` is the single version (`Directory.Build.props`); commit it after a deploy. Needs `vpk`
+(`dotnet tool install -g vpk`) and `ftp_credentials.json` in the root - git-ignored, the repo is public.
+Auto-update (`AppUpdates`, Hub project, linked into Assist) only works in the Setup install: it checks
+`/avh/updates/<hub|assist>/` at start and every 30 min, downloads in the background and shows
+"Restart to update" - never applies on its own, since restarting cuts connections. Keep `artifacts/velopack/`
+between releases: vpk builds delta packages from it.
+
 On Windows the publish folder also gets `msquic.dll` (from the package's `buildTransitive` targets).
 It must ship next to the exe; without it QUIC is missing and every session silently uses the relay.
 

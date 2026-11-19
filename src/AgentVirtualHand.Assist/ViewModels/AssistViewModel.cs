@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AgentVirtualHand.Server;
+using AgentVirtualHand.Services;
+using AgentVirtualHand.ViewModels;
 using Avalonia.Threading;
 
 namespace AgentVirtualHand.Assist.ViewModels;
@@ -145,6 +147,20 @@ public sealed class AssistViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasCode));
         OnPropertyChanged(nameof(ConnectedText));
     }
+
+    /// <summary>Aktualizacje: przycisk restartu pod licznikiem, gdy nowsza wersja jest pobrana.</summary>
+    public UpdatePrompt? Updates { get; private set; }
+
+    public void AttachUpdates(IAppUpdates updates)
+    {
+        Updates = new UpdatePrompt(updates);
+        Updates.Failed += message =>
+            StartupError = $"Update could not be installed: {message}. Close and reopen this window.";
+        OnPropertyChanged(nameof(Updates));
+    }
+
+    /// <summary>Odcina wszystkich jak zamknięcie okna, potem Velopack podmienia pliki i uruchamia nową wersję.</summary>
+    public Task RestartForUpdateAsync() => Updates?.RestartAsync(ShutdownBlocking) ?? Task.CompletedTask;
 
     /// <summary>Zamkniecie okna: odetnij wszystkich i zatrzymaj serwer. Czeka na watku roboczym (jak host).</summary>
     public void ShutdownBlocking()
