@@ -14,3 +14,15 @@ avh-error.log
 # archiwa wydania
 *.7z
 *.zip
+
+# mTiles workspace state
+.agents/skills/mtiles-skill-local-wyglarz-apliakcji/
+
+# mTiles workspace state
+.agents/skills/mtiles-subtasks/
+
+# mTiles workspace state
+.claude/skills/mtiles-subtasks/
+
+# mTiles workspace state
+.claude/skills/mtiles-workflows/
